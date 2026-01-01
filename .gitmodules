@@ -1,0 +1,6 @@
+[submodule "daes67"]
+	path = daes67
+	url = git@github.com:dickinsaudio/daes67
+[submodule "WIZnet-PICO-C"]
+	path = WIZnet-PICO-C
+	url = https://github.com/WIZnet-ioNIC/WIZnet-PICO-C.git

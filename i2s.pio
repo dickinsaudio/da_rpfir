@@ -1,0 +1,367 @@
+; A set of useful I2S and TDM routines for DickinsAudio projects
+;
+; Pins are generally reassignable in the following groups
+; BCLK   LRCLK          Sequential Pins for Input bit clock and 50% duty cycle falling edge start I2S or TDM
+; BCLKx2 LRCLKx2        Sequential Pins Output bit clock at 2x the LRCLK frame rate for I2S
+; D                     Data pin out for the i2s_double_out or tdm_in
+; D0 D1 D2 D3           Sequential Pins for the Input I2S 4 group
+;
+
+.program tdm_in
+; TDM 8 channel audio slaved from clock
+; Input pin: DI
+; JMP pin:   LRCK
+; 
+; Still expects a 50% LR CLK duty cycle
+; And falling edge LR is the start of frame
+; 
+; Only syncs once a frame, so frame rate must be 2000ppm in range
+;
+
+
+public entry_point:
+    jmp pin entry_point                 ; Wait for LRCLK to fall
+    set x, 7                            ; 8 words in a frame
+    set y, 29                           ; 32 bits in a word (one is with push and one at end)
+    jmp bit              [21]           ; Skip the first 1.5 clock cycle and the first push
+word:
+    nop                  [12]           ; Wait out the rest of the last cycle
+.wrap_target
+    in pins, 1            [7]           ; Get last bit of the word
+    push noblock          [7]
+bit:
+    in pins, 1            [7]           ; Get a bit
+    jmp y-- bit           [7]           ;  
+    in pins, 1
+    set y, 29                           ;
+    jmp x-- word                        ; Repeat this 8 times
+stall0:
+    jmp pin stall1                      ; Wait for LRCLK to become
+    jmp stall0                          ; high (should already be high)
+stall1:
+    jmp pin stall1                      ; Wait for LRCLK to fall
+    set x, 7              [7]           ; Skip the first half clock cycle
+.wrap                                   ; Return to the start
+
+
+
+.program i2s_in
+; I2S channel audio slaved from clock
+; Input pin: DI 
+; JMP pin:   LRCK
+; 50% LR CLK duty cycle
+; And falling edge LR is the start of frame
+
+
+public entry_point:
+    jmp pin entry_point                 ; Wait for LRCLK to fall
+    set x, 1                            ; 2 words in a frame
+    set y, 29                           ; 32 bits in a word (one is with push and one at end)
+    nop                  [29]
+    nop                  [31]
+    jmp bit              [31]           ; Skip the first 1.5 clock cycle and the first push
+word:
+    nop                  [28]           ; Wait out the rest of the last cycle
+    nop                  [31]
+.wrap_target
+    in pins, 1           [31]           ; Get last bit of the word
+    push noblock         [31]
+bit:
+    in pins, 1           [31]           ; Get a bit
+    jmp y-- bit          [31]           ;  
+    in pins, 1
+    set y, 29                           ;
+    jmp x-- word                        ; Repeat this 8 times
+stall0:
+    jmp pin stall1                      ; Wait for LRCLK to become
+    jmp stall0                          ; high (should already be high)
+stall1:
+    jmp pin stall1                      ; Wait for LRCLK to fall
+    set x, 1             [31]           ; Skip the first half clock cycle
+.wrap                                   ; Return to the start
+
+
+.program i2s_four_in
+; I2S channel audio slaved from clock
+; Input pins: DI0 DI1 DI2 DI3 
+; JMP pin:   LRCK
+; 50% LR CLK duty cycle
+; Group four I2S pins together to save on DMA controllers.  Needs to be de-interleaved though.
+
+
+public entry_point:
+    jmp pin entry_point                 ; Wait for LRCLK to fall
+    set x, 7                            ; 7 words in a frame
+    set y, 5                            ; 32 (4 + 6*4 + 4) bits in a word
+    nop                  [29]
+    nop                  [31]
+    jmp bit              [31]           ; Skip the first 1.5 clock cycle and the first push
+word:
+    nop                  [28]           ; Wait out the rest of the last cycle
+    nop                  [31]
+.wrap_target
+    in pins, 4           [31]           ; Get last bit of the word
+    push noblock         [31]
+bit:
+    in pins, 4           [31]           ; Get a bit
+    jmp y-- bit          [31]           ;  
+    in pins, 4
+    set y, 5                           ;
+    jmp x-- word                        ; Repeat this 8 times
+stall0:
+    jmp pin stall1                      ; Wait for LRCLK to become
+    jmp stall0                          ; high (should already be high)
+stall1:
+    jmp pin stall1                      ; Wait for LRCLK to fall
+    set x, 7             [31]           ; Skip the first half clock cycle
+.wrap                                   ; Return to the start
+
+
+
+
+
+.program i2s_double_out
+; I2S audio output master running at 2x the i2s_duplex block (using same input framing).
+;
+; Input pin order: BCLK
+; Output order:    DO    BCKx2, LRCKx2 (side)
+; Jump pin         LRCLK
+; 
+; No idea why, but a wait 0 pin 1 is 10ns slower than any other wait.
+; This design resets to BCLK four times a frame in order to minimize jitter of the output clocks
+; against the incoming clocks.  
+;
+
+.side_set 2
+
+public entry_point:
+    set x, 1                side 0b11   ; Count of which sub frame we are in
+    wait 1 pin 1            side 0b11   ; If it low, wait for LRCLK high
+    wait 0 pin 1            side 0b11   ; Synchronous fall
+frame:
+.wrap_target
+    out pins, 1   [7]       side 0b10   ; Need to delay until a definite 
+    nop           [7]       side 0b10   ; clear falling edge of BCLK for both
+    nop           [7]       side 0b11   ; I2S and TDM input
+    nop           [7]       side 0b11   ;
+    out pins, 1   [7]       side 0b10   ; 
+    nop           [7]       side 0b10   ;
+    nop           [7]       side 0b11   ;
+    wait 1 pin 0            side 0b11   ; Wait for BCLK
+    wait 0 pin 0            side 0b11   ; Wait for BCLK to fall
+    out pins, 1   [7]       side 0b00   ; Drop LR and first bit is from last I2S frame
+    set y,30      [7]       side 0b00
+    pull noblock  [7]       side 0b01
+bit0:
+    nop           [7]       side 0b01 
+    out pins, 1   [7]       side 0b00   ; 31 bits from the freshly pulled word
+    nop           [7]       side 0b00
+    jmp y-- bit0  [7]       side 0b01
+
+    set y, 28               side 0b01
+    wait 1 pin 0            side 0b01   ; Resync to falling edge of BCLK
+    wait 0 pin 0            side 0b01 
+    out pins, 1   [7]       side 0b10   ; Last bit and signal second half of 96kHz frames
+    nop           [7]       side 0b10
+    pull noblock  [7]       side 0b11
+bit1:
+    nop           [7]       side 0b11
+    out pins, 1   [7]       side 0b10   ; 31 bits from the newly pulled frame
+    nop           [7]       side 0b10
+    jmp y-- bit1  [7]       side 0b11   
+    jmp !x entry_point      side 0b11   ; Second time through restart
+    set x,0       [6]       side 0b11   ; Flag second time through
+.wrap
+
+
+.program i2s_master_out
+; Super simple I2S audio output master - may change to PLL clock later
+;
+; Output pin order: BCLK WCLK DO
+; Using side pins, though makes this need a lot of words
+
+.side_set 2
+
+public entry_point:
+.wrap_target
+Frame0:             
+    out pins, 1       [7]   side 0b00       ; Start of frame
+    set x, 30         [7]   side 0b00       ; 
+    nop               [7]   side 0b01       ;
+    pull noblock      [7]   side 0b01       ; 
+Data0:
+    out pins, 1       [7]   side 0b00       ; 31 bit loop
+    nop               [7]   side 0b00       ;
+    nop               [7]   side 0b01       ;
+    jmp x-- Data0     [7]   side 0b01       ;
+Frame1:
+    out pins, 1       [7]   side 0b10       ; Second half of 
+    set x, 30         [7]   side 0b10       ; 
+    nop               [7]   side 0b11       ;
+    pull noblock      [7]   side 0b11       ; 
+Data1:
+    out pins, 1       [7]   side 0b10       ; 31 bit loop
+    nop               [7]   side 0b10       ;
+    nop               [7]   side 0b11       ;
+    jmp x-- Data1     [7]   side 0b11       ;
+.wrap
+
+
+
+.program tdm8_master_duplex
+; Super simple TDM audio output master
+;
+; Output pin order: DO DI
+; Using side pins, though makes this need a lot of words
+
+public entry_point:
+.wrap_target
+    in  pins, 1 
+    out pins, 1
+    nop             [13]
+.wrap
+
+
+
+.program i2s_mck
+; Transmit an I2S system / master clock.
+;
+public entry_point:
+.wrap_target
+    set pins 1 [1]
+    set pins 0 [1]
+.wrap
+
+
+
+
+% c-sdk {
+
+
+static inline void tdm_in_init(PIO pio, int sm, int offset, int lrclk, int din, int divN, int divF ) 
+{
+    pio_gpio_init(pio, lrclk);        // TDM word clock - 50% duty cycle, falling edge for start
+    pio_gpio_init(pio, din);          // Data in
+
+    pio_sm_config sm_config = tdm_in_program_get_default_config(offset);
+    sm_config_set_in_pins      (&sm_config, din);
+    sm_config_set_jmp_pin      (&sm_config, lrclk);
+    sm_config_set_in_shift     (&sm_config, false, false, 0);
+    pio_sm_init(pio, sm, offset + tdm_in_offset_entry_point, &sm_config);
+    uint32_t pin_mask = (1 << din) | (1 << lrclk);                                       // Everything synced off LR clock normal rate
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static inline void i2s_double_out_init(PIO pio, int sm, int offset, int bclk, int bclk2, int dout, int divN, int divF ) 
+{
+    pio_gpio_init(pio, bclk);         // I2S normal clock
+    pio_gpio_init(pio, bclk+1);       // 
+    pio_gpio_init(pio, dout);         // Data out
+    pio_gpio_init(pio, bclk2);        // Bit clock at double rate
+    pio_gpio_init(pio, bclk2+1);      // LR clock at double rate
+
+    pio_sm_config sm_config = i2s_double_out_program_get_default_config(offset);
+    sm_config_set_out_pins     (&sm_config, dout, 1);
+    sm_config_set_in_pins      (&sm_config, bclk);
+    sm_config_set_sideset_pins (&sm_config, bclk2);
+    sm_config_set_jmp_pin      (&sm_config, bclk+1);
+    sm_config_set_out_shift    (&sm_config, false, false, 32);
+    pio_sm_init(pio, sm, offset + i2s_double_out_offset_entry_point, &sm_config);
+
+    uint32_t pin_mask = (1 << dout) | (3 << bclk2);               // Data out and two clocks
+    pio_sm_set_pins_with_mask(pio, sm, 0, pin_mask); 
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+
+    pin_mask = (3 << bclk);                                    // Everything synced off LR clock normal rate
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+    
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static inline void i2s_in_init(PIO pio, uint8_t sm, int offset, int lrclk, int din, int divN, int divF) 
+{
+    pio_gpio_init(pio, lrclk);
+    pio_gpio_init(pio, din);
+
+    pio_sm_config sm_config = i2s_in_program_get_default_config(offset);
+    sm_config_set_in_pins  (&sm_config, din);
+    sm_config_set_jmp_pin  (&sm_config, lrclk);
+    sm_config_set_in_shift (&sm_config, false, false, 0);
+    pio_sm_init(pio, sm, offset + i2s_in_offset_entry_point, &sm_config);
+    uint32_t pin_mask = (1 << din) | (1 << lrclk);                                       // Everything synced off LR clock normal rate
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static inline void i2s_four_in_init(PIO pio, uint8_t sm, int offset, int lrclk, int din, int divN, int divF) 
+{
+    pio_gpio_init(pio, lrclk);
+    pio_gpio_init(pio, din);
+    pio_gpio_init(pio, din+1);
+    pio_gpio_init(pio, din+2);
+    pio_gpio_init(pio, din+3);
+
+    pio_sm_config sm_config = i2s_four_in_program_get_default_config(offset);
+    sm_config_set_in_pins  (&sm_config, din);
+    sm_config_set_jmp_pin  (&sm_config, lrclk);
+    sm_config_set_in_shift (&sm_config, false, false, 0);
+    pio_sm_init(pio, sm, offset + i2s_four_in_offset_entry_point, &sm_config);
+    uint32_t pin_mask = (0xF << din) | (1 << lrclk);                                       // Everything synced off LR clock normal rate
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static inline void i2s_master_out_init(PIO pio, int sm, int offset, int bclk, int dout, int divN, int divF) 
+{
+    pio_gpio_init(pio, bclk);         // I2S normal clock
+    pio_gpio_init(pio, bclk+1);       // 
+    pio_gpio_init(pio, dout);         // Data out
+    
+    pio_sm_config sm_config = i2s_master_out_program_get_default_config(offset);
+    sm_config_set_out_pins     (&sm_config, dout, 1);
+    sm_config_set_sideset_pins (&sm_config, bclk);
+    sm_config_set_out_shift    (&sm_config, false, false, 32);
+    pio_sm_init(pio, sm, offset + i2s_master_out_offset_entry_point, &sm_config);
+
+    uint32_t pin_mask = (1 << dout) | (3 << bclk);               // Data out and two clocks
+    pio_sm_set_pins_with_mask(pio, sm, 0, pin_mask); 
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+    
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static void i2s_mck_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t mck_pin, int divN, int divF) {
+    pio_gpio_init               (pio, mck_pin);
+    pio_sm_config sm_config = i2s_mck_program_get_default_config(offset);
+    sm_config_set_set_pins(&sm_config, mck_pin, 1);
+    pio_sm_init                 (pio, sm, offset, &sm_config);
+    uint pin_mask = (1u << mck_pin);
+    pio_sm_set_pins_with_mask   (pio, sm, 0, pin_mask);  // zero output
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+    pio_sm_set_clkdiv_int_frac  (pio, sm, divN, divF);
+}
+
+static inline void tdm8_master_duplex_init(PIO pio, int sm, int offset, int din, int dout, int divN, int divF) 
+{
+    pio_gpio_init(pio, din);          // Data out
+    pio_gpio_init(pio, dout);         // Data out
+    
+    pio_sm_config sm_config = tdm8_master_duplex_program_get_default_config(offset);
+    sm_config_set_out_pins     (&sm_config, dout, 1);
+    sm_config_set_in_pins      (&sm_config, din);
+    sm_config_set_out_shift    (&sm_config, false, true, 32);
+    sm_config_set_in_shift     (&sm_config, true,  true, 32);
+    pio_sm_init(pio, sm, offset + tdm8_master_duplex_offset_entry_point, &sm_config);
+
+    uint32_t pin_mask = (1 << dout);
+    pio_sm_set_pins_with_mask(pio, sm, 0, pin_mask); 
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+    
+    pin_mask = (1 << din);
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+%}
