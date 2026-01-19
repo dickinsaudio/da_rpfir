@@ -27,7 +27,7 @@
 
 // SIMPLE WRAPPER OF W5500 TO PROVIDE SETUP AND UDP RECEIVCE CALLBACK
 
-#include "da_spi2i2s.hpp"
+#include "da_rpfir.hpp"
 
 extern "C" {
 #include "wizchip_spi.h"

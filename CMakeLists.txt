@@ -30,12 +30,51 @@ endif()
 include(WIZnet-PICO-C/pico_sdk_import.cmake)
 include(WIZnet-PICO-C/wiznet_pico_c_sdk_version.cmake)
 
-project(da_spi2i2s C CXX ASM )
+project(da_rpfir C CXX ASM )
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
+
+# Ensure you're building the ARM M33 platform (not the RISC-V/Hazard3 one)
+# (Your current "rp2350" may work, but this makes it explicit.)
+set(PICO_PLATFORM rp2350-arm-s)  # :contentReference[oaicite:2]{index=2}
+
+add_library(cmsis_dsp STATIC)
+set(CMSIS_DSP_ROOT ${CMAKE_CURRENT_LIST_DIR}/extern/CMSIS-DSP)
+
+file(GLOB_RECURSE CMSIS_DSP_SRC
+  ${CMSIS_DSP_ROOT}/Source/*/*.c
+)
+
+# 1) Don't compile per-function sources (compiled via aggregators)
+list(FILTER CMSIS_DSP_SRC EXCLUDE REGEX ".*/arm_.*\\.c$")
+
+# 2) Don't compile internal fragments/templates (leading underscore)
+list(FILTER CMSIS_DSP_SRC EXCLUDE REGEX ".*/_.*\\.c$")
+
+# 3) Optional: disable float16 (recommended unless you explicitly need it)
+list(FILTER CMSIS_DSP_SRC EXCLUDE REGEX ".*/.*F16.*\\.c$")
+target_compile_definitions(cmsis_dsp PUBLIC DISABLEFLOAT16)
+
+target_sources(cmsis_dsp PRIVATE ${CMSIS_DSP_SRC})
+
+target_include_directories(cmsis_dsp PUBLIC
+  ${CMSIS_DSP_ROOT}/Include
+  ${CMSIS_DSP_ROOT}/PrivateInclude
+)
+
+# Inherit Pico SDK CMSIS-Core paths/glue
+target_link_libraries(cmsis_dsp PUBLIC cmsis_core)
+
+target_compile_definitions(cmsis_dsp PUBLIC
+  ARM_MATH_CM33
+  ARM_MATH_LOOPUNROLL
+)
+
+# Optional: if you want CMSIS-DSP hotter than the rest of your code
+target_compile_options(cmsis_dsp PRIVATE -O3)
 
 if(NOT DEFINED WIZNET_DIR)
     set(WIZNET_DIR ${CMAKE_SOURCE_DIR}/WIZnet-PICO-C/libraries/ioLibrary_Driver)
@@ -118,16 +157,16 @@ message(STATUS "GIT_DAES67_HASH:   ${GIT_DAES67_HASH}")
 message(STATUS "GIT_DAES67_TAG:    ${GIT_DAES67_TAG}")
 
 
-add_executable(da_spi2i2s) 
-target_compile_definitions(da_spi2i2s PRIVATE PFB_AES_KEY="${PFB_AES_KEY}")
+add_executable(da_rpfir) 
+target_compile_definitions(da_rpfir PRIVATE PFB_AES_KEY="${PFB_AES_KEY}")
 
-pico_generate_pio_header(da_spi2i2s ${CMAKE_CURRENT_LIST_DIR}/i2s.pio)
-pico_generate_pio_header(da_spi2i2s ${CMAKE_CURRENT_LIST_DIR}/spi.pio)
+pico_generate_pio_header(da_rpfir ${CMAKE_CURRENT_LIST_DIR}/i2s.pio)
 
-#Target_sources(da_spi2i2s  PRIVATE wizchip_http_server.c)
+#Target_sources(da_rpfir  PRIVATE wizchip_http_server.c)
+
                             
-Target_sources(da_spi2i2s   PRIVATE 
-                            da_spi2i2s.cpp 
+Target_sources(da_rpfir   PRIVATE 
+                            da_rpfir.cpp 
                             core_audio.cpp 
                             core_web.cpp 
                             w5500_udp.cpp
@@ -139,18 +178,19 @@ Target_sources(da_spi2i2s   PRIVATE
                             daes67/src/http_server.cpp
                             )
 
-target_include_directories(da_spi2i2s PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67/include)
+target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67/include)
 
-pico_set_program_name(da_spi2i2s "da_spi2i2s")
-pico_set_program_version(da_spi2i2s "1.0.1")
+
+pico_set_program_name(da_rpfir "da_rpfir")
+pico_set_program_version(da_rpfir "1.0.1")
 
 # no_flash means the target is to run from RAM
-# pico_set_binary_type(da_spi2i2s no_flash)
-pico_enable_stdio_uart(da_spi2i2s  1)
-pico_enable_stdio_usb(da_spi2i2s 1)
+# pico_set_binary_type(da_rpfir no_flash)
+pico_enable_stdio_uart(da_rpfir  1)
+pico_enable_stdio_usb(da_rpfir 1)
 
 # Add any user requested libraries
-target_link_libraries(da_spi2i2s
+target_link_libraries(da_rpfir cmsis_dsp
         hardware_i2c
         hardware_dma
         hardware_pio
@@ -168,4 +208,4 @@ target_link_libraries(da_spi2i2s
         DHCP_FILES
         )
 
-pico_add_extra_outputs(da_spi2i2s)
+pico_add_extra_outputs(da_rpfir)

@@ -4,3 +4,9 @@
 [submodule "WIZnet-PICO-C"]
 	path = WIZnet-PICO-C
 	url = https://github.com/WIZnet-ioNIC/WIZnet-PICO-C.git
+[submodule "extern/CMSIS-DSP"]
+	path = extern/CMSIS-DSP
+	url = https://github.com/ARM-software/CMSIS-DSP
+[submodule "extern/CMSIS_5"]
+	path = extern/CMSIS_5
+	url = https://github.com/ARM-software/CMSIS_5

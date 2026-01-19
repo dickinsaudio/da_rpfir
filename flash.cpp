@@ -1,4 +1,4 @@
-#include "da_spi2i2s.hpp"
+#include "da_rpfir.hpp"
 #include "board_list.h"
 
 #define FLASH_OFFSET (2044*1024)
@@ -27,7 +27,7 @@ void flash_init()
 {
     memset(flash,0,sizeof(flash_t));        // Initialization
         
-    flash->magic = SPI2I2S_MAGIC;            // Just a sanity number so we know the flash has been initialized
+    flash->magic = RPFIR_MAGIC;            // Just a sanity number so we know the flash has been initialized
     flash->version = 0;
     flash->board = DEVICE_BOARD_NAME;       // The type of board we are running on
     flash->loads = 1;                       // Count the number of initial loads (boot)
@@ -60,7 +60,7 @@ void flash_init()
 void flash_load()
 {
     memcpy(flash,(const void*)(XIP_BASE + FLASH_OFFSET),sizeof(flash_t));    
-    if (flash->magic != SPI2I2S_MAGIC) flash_init();
+    if (flash->magic != RPFIR_MAGIC) flash_init();
     flash->loads++;
     flash_save();
 }; 
@@ -71,7 +71,7 @@ int flash_state(char *str, int len)
 {
     char *p=str;  
     ADD("VERSION MARKER      %08lX\n",flash->magic); 
-    ADD("SPI2I2S VERSION     %ld\n",flash->version);
+    ADD("RPFIR   VERSION     %ld\n",flash->version);
     ADD("BOARD NAME          %s\n",DEVICE_BOARD_NAME_STRING[flash->board]);
     ADD("NUMBER OF LOADS     %ld\n",flash->loads); 
     ADD("DEVICE NAME         %s\n",flash->name); 

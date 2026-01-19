@@ -7,7 +7,7 @@
 //
 
 
-#define SPI2I2S_MAGIC   0xDA541125       // Change this when the Flash structure changes
+#define RPFIR_MAGIC   0xDA541125       // Change this when the Flash structure changes
 
 typedef struct 
 {

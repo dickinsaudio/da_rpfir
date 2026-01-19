@@ -118,10 +118,7 @@ void w5500_dhcp(void);
 
 extern int32_t audio_out_peaks[16];
 
-extern Histogram spi_dma_duration;
-extern Histogram spi_blocks_timing;
 extern Histogram i2s_dma_timing;
-extern Histogram spi_data_move_time;
 
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];

@@ -25,7 +25,7 @@
  * and its relationship to any third-party intellectual property.
  *******************************************************************/
 
-#include "da_spi2i2s.hpp"
+#include "da_rpfir.hpp"
 #include <vector>
 #include <algorithm> 
 #include <numeric>
@@ -269,7 +269,7 @@ const char *cgi_sys(const char* name, const char* arg, int len, char *buf)
         ADD("<h2>FIRMWARE DETAIL</h2><pre class=\"info\">");
         #define STR(x) #x
         #define STRING(x) STR(x)
-        ADD("DEVICE BUILD        SPI2I2S (V%ld) - %s\n",0,DEVICE_BOARD_NAME_STRING[DEVICE_BOARD_NAME]);
+        ADD("DEVICE BUILD        RPFIR (V%ld) - %s\n",0,DEVICE_BOARD_NAME_STRING[DEVICE_BOARD_NAME]);
         ADD("DONGLE GIT VERSION  %s(%s)   %s\n",GIT_BRANCH, GIT_HASH, GIT_TAG);
         ADD("DAES67 GIT VERSION  %s(%s)   %s\n",GIT_DAES67_BRANCH, GIT_DAES67_HASH, GIT_DAES67_TAG);
         ADD("BUILD TIME          %s %s\n",__DATE__, __TIME__);
@@ -336,9 +336,6 @@ int chunk_statistics(int id, int len, char* buf)
     {
         case 0:  ADD("Time %lld\n\n",now_ns()/1000000000LL);
                  p += i2s_dma_timing.sntext(len, height, p); *p++='\n'; break;
-        case 1:  p += spi_blocks_timing.sntext(len, height, p); *p++='\n'; break;
-        case 2:  p += spi_dma_duration.sntext(len, height, p); *p++='\n'; break;
-        case 3:  p += spi_data_move_time.sntext(len, height, p); *p++='\n'; break;
         default: return 0;
     }
     return p-buf;
@@ -351,9 +348,12 @@ int chunk_cpu(int id, int len, char* buf)
     if (len==0 || buf==0) { step[id]=0; return 0; };
     char *p = buf;
     int height = 12;
+    extern Histogram fft_time;
     switch(step[id]++)
     {
-        case 0:  p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
+        
+        case 0:  p += fft_time.sntext(len, height, p); *p++='\n'; break;
+                 p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
         case 1:  p += core_stall[0].sntext(len, height, p); *p++='\n'; break;
         case 2:  p += core_idle[1].sntext(len, height, p); *p++='\n'; break;
         case 3:  p += core_stall[1].sntext(len, height, p); *p++='\n'; *p++='\n'; break;
@@ -374,9 +374,6 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (strstr(arg,"clearstats")) 
     { 
         i2s_dma_timing.clear();
-        spi_blocks_timing.clear();
-        spi_dma_duration.clear();
-        spi_data_move_time.clear();
     }
     if (strstr(arg,"debug")) 
     { 
@@ -485,16 +482,10 @@ void start_web(void)
             for (int n=0; n<2; n++)
             {
                 // Based on the loop taking 1.5us - largely the ::now() and the Histogram.time()
-                const float max_ticks = (float)(idle_check_time_ms*1000000.0F/1E9F/100.0F/1.5E-6);
+                const float max_ticks = (float)(idle_check_time_ms*1000000.0F/1E9F/100.0F/1E-6);
                 if (core_stall[n].N() > core_ticks[n]) core_idle[n].add((float)(core_stall[n].N()-core_ticks[n]) / max_ticks);
                 core_ticks[n] = core_stall[n].N();
             }
-
-            extern int64_t spi_dma_count;
-            extern int32_t spi_in[16*24];
-//            extern int32_t spi_out[16*24];
-//            printf("DMA COUNT %6lld  TXFIFO %d    SPI_IN  %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X\n", spi_dma_count, pio_sm_get_tx_fifo_level(pio1, 1), spi_in[0], spi_in[1], spi_in[2], spi_in[3], spi_in[4], spi_in[5], spi_in[6], spi_in[7], spi_in[8], spi_in[9]);
-//          printf("DMA COUNT         TXFIFO      SPI_OUT %08X %08X %08X %08X %08X %08X %08X %08X\n", spi_out[0], spi_out[1], spi_out[2], spi_out[3], spi_out[4], spi_out[5], spi_out[6], spi_out[7]);
 
         }
 

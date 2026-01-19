@@ -1,4 +1,4 @@
-#include "da_spi2i2s.hpp"
+#include "da_rpfir.hpp"
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
 
@@ -52,7 +52,7 @@ int main()
 
     Notice("*********************************************");
     Notice("STARTING AUDIO SERVER IN CORE 1");
-    //start_audio();
+    start_audio();
     Notice("STARTING WEB SERVER");
     start_web();
     
