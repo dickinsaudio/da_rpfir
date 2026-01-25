@@ -21,8 +21,8 @@
 #define     CLK_PIO_DIV_F   ((int)(((CLK_SYS%CLK_PIO)*256LL+128)/CLK_PIO))  // PIO clock divider fractional part
 
 #define     I2S_CHANS       2                   // Number of I2S channels to output
-#define     I2S_BLOCK       4096                // Number of samples at that we lump into each ISR call
-#define     I2S_BUFFER      8192                // Number of samples at in the ring buffer  (I2S_BUFFER / I2S_BLOCK must be power of two)
+#define     I2S_BLOCK       2048                // Number of samples at that we lump into each ISR call
+#define     I2S_BUFFER      2*I2S_BLOCK         // Number of samples at in the ring buffer  (I2S_BUFFER / I2S_BLOCK must be power of two)
 #define     I2S_PIO         pio0                // PIO to use for I2S in and out
 #define     I2S_OUT0_SM     0                   // State machine for I2S output
 #define     I2S_OUT1_SM     1                   // State machine for I2S
@@ -43,7 +43,7 @@ static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RI
 
 int32_t     i2s_in [I2S_CHANS*I2S_BUFFER];
 int32_t     i2s_out0[I2S_CHANS*I2S_BUFFER]  = { (int32_t)0xFF00FF00, (int32_t)0xCCCCCCCC };
-int32_t     i2s_out1[I2S_CHANS*I2S_BUFFER];
+//int32_t     i2s_out1[I2S_CHANS*I2S_BUFFER];
 
 int32_t  audio_in_peaks[2] = {};              // The output audio meters
 int32_t  audio_out_peaks[4] = {};             // The output audio meters
@@ -57,7 +57,7 @@ int      i2s_out1_dma2    = -1;
 
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_in_trigger[I2S_BUFFER/I2S_BLOCK];
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out0_trigger[I2S_BUFFER/I2S_BLOCK];
-int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out1_trigger[I2S_BUFFER/I2S_BLOCK];
+//int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out1_trigger[I2S_BUFFER/I2S_BLOCK];
 
 
 Histogram i2s_in_dma_timing("I2S DMA Timing", 0, .050F);
@@ -167,10 +167,10 @@ void start_audio()
 int64_t last_dump  = now_ns();
 int64_t next_fft   = now_ns()+5000000000;
 
-#define T_FFT       1
-#define N_FFT       1
-#define M_FIR       2
-#define CHANS       2
+#define T_FFT       I2S_BLOCK       // The stride of time samples between each FFT
+#define N_FFT       T_FFT           // The size of the complex FFT we will be using
+#define M_FIR       4               // The number of blocks to use for filtering
+#define CHANS       2               // The number of output channels
 
 #include "arm_math.h"
                                                     
@@ -180,8 +180,6 @@ float32_t   buf_X[M_FIR][2*N_FFT];
 float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
 float32_t   buf_tmp[2*N_FFT];
-
-char str[290000] = {};
 
 Histogram fft_time("DSP Time", 0, .050F);
 
@@ -204,7 +202,6 @@ void core_audio()
     else                          Notice("FFT INIT SUCCESS");
 
     for (int n=0; n<(int)(sizeof(buf_H)/sizeof(float32_t)); n++) (&buf_H[0][0][0])[n] = rand(); 
-    str[0] = 2;
     while(1)
     {
         int64_t now = now_ns();
@@ -221,7 +218,7 @@ void core_audio()
             last_dump = now;
         }
 
-        if (0) //8now > next_fft)
+        if (now > next_fft)
         {
             next_fft += 21000000;
 

@@ -209,3 +209,16 @@ target_link_libraries(da_rpfir cmsis_dsp
         )
 
 pico_add_extra_outputs(da_rpfir)
+
+# Add custom target to display RAM usage - runs every time make is invoked
+add_custom_target(ram_usage ALL
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    COMMAND ${CMAKE_COMMAND} -E echo "════════════════════════════════════════════════════════════"
+    COMMAND ${CMAKE_COMMAND} -E echo "RP2350 RAM USAGE ANALYSIS"
+    COMMAND ${CMAKE_COMMAND} -E echo "════════════════════════════════════════════════════════════"
+    COMMAND awk -f ${CMAKE_SOURCE_DIR}/scripts/ram_usage.awk ${CMAKE_BINARY_DIR}/da_rpfir.elf.map || echo "Map file not found - run 'make da_rpfir' first"
+    COMMAND ${CMAKE_COMMAND} -E echo "════════════════════════════════════════════════════════════"
+    COMMAND ${CMAKE_COMMAND} -E echo ""
+    DEPENDS da_rpfir
+    COMMENT "Analyzing RAM usage..."
+)

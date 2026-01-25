@@ -50,7 +50,7 @@
 #define HTTP_SOCKETS (3)            // Number of sockets to use for HTTP
 
 
-#define         stretch_trace_size      (1000)
+#define         stretch_trace_size      (500)
 #define         stretch_trace_time_ms   (1000)         // Time between trace records in ms
 #define         idle_check_time_ms      (1000)         // Time between idle checks in ms
 stretch_trace_t stretch_trace[stretch_trace_size] = {};
