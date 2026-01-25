@@ -68,6 +68,8 @@ Histogram i2s_out1_dma_timing("I2S DMA Timing", 0, .050F);
 __not_in_flash() void i2s_dma_handler(void) 
 {
     dma_hw->ints0 = 1u << i2s_in_dma2;   // Clear the interrupt request
+    int buffer = ((int32_t*)dma_hw->ch[i2s_in_dma1].write_addr >= &i2s_in[I2S_CHANS*I2S_BLOCK]) ? 1 : 0;
+    memcpy(&i2s_out0[buffer*I2S_CHANS*I2S_BLOCK], &i2s_in[buffer*I2S_CHANS*I2S_BLOCK], I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
     int64_t time = now_ns();
     i2s_out0_dma_timing.time(time);
 }
@@ -77,8 +79,8 @@ void i2s_setup()
     Notice("SETTING UP I2S DMA");
     
     pio_clear_instruction_memory(I2S_PIO);
-    uint offset = pio_add_program (I2S_PIO  , &i2s_master_out_program);
-    i2s_master_out_init(I2S_PIO, I2S_OUT0_SM, offset, I2S_OUT_BCLK_PIN, I2S_OUT_SD0_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
+    uint offset = pio_add_program (I2S_PIO  , &i2s_slave_out_program);
+    i2s_slave_out_init(I2S_PIO, I2S_OUT0_SM, offset, I2S_IN_LRCLK_PIN, I2S_OUT_SD0_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
 
     offset = pio_add_program (I2S_PIO  , &i2s_in_program);  
     i2s_in_init(I2S_PIO, I2S_IN_SM, offset, I2S_IN_LRCLK_PIN, I2S_IN_SD_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);
