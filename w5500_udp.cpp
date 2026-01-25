@@ -158,8 +158,8 @@ void w5500_dhcp(void)
     if (1)                                                // And if that fails, use the default zero config using the unique id
     {
         Notice("DHCP FAILED USING DEFAULT ZERO CONF IP");
-        flash->net_info.ip[0]  = 169;           flash->net_info.ip[1]  = 254;       flash->net_info.ip[2]  = 1;   flash->net_info.ip[3]  = 2;       
-        flash->net_info.sn[0]  = 255;           flash->net_info.sn[1]  = 255;       flash->net_info.sn[2]  = 254;                 flash->net_info.sn[3]  = 0;
+        flash->net_info.ip[0]  = 10;            flash->net_info.ip[1]  = 0;         flash->net_info.ip[2]  = 1;                 flash->net_info.ip[3]  = 16;       
+        flash->net_info.sn[0]  = 255;           flash->net_info.sn[1]  = 255;       flash->net_info.sn[2]  = 254;               flash->net_info.sn[3]  = 0;
         flash->net_info.gw[0]  = 0;             flash->net_info.gw[1]  = 0;         flash->net_info.gw[2]  = 0;                 flash->net_info.gw[3]  = 0;
         flash->net_info.dns[0] = 8;             flash->net_info.dns[1] = 8;         flash->net_info.dns[2] = 8;                 flash->net_info.dns[3] = 8;
         flash->net_info.dhcp   = NETINFO_STATIC;      

@@ -81,22 +81,13 @@ static char __in_flash() page_prefix[] =
         "<button class=\"mbut\" onclick=\"location.href='system.html'\">SYSTEM</button>"
         "<button class=\"mbut\" onclick=\"bootloader()\">USB BOOT</button>"
     "</div>"
-    "<progress id=\"M0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M1\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M2\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M3\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M4\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M5\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M6\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M7\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M8\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M9\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M10\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M11\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M12\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M13\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M14\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"M15\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<progress id=\"I0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<progress id=\"I1\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<br>"
+    "<progress id=\"O0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<progress id=\"O1\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<progress id=\"O2\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
+    "<progress id=\"O3\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
     "<script>updateMeters();</script>";
 
 
@@ -105,22 +96,12 @@ static char __in_flash() page_scripts[] =
         "fetch('get?meters')"
             ".then(response => response.json())"
             ".then(data => {"
-                "document.getElementById('M0').value = data.O0;"
-                "document.getElementById('M1').value = data.O1;"
-                "document.getElementById('M2').value = data.O2;"
-                "document.getElementById('M3').value = data.O3;"
-                "document.getElementById('M4').value = data.O4;"
-                "document.getElementById('M5').value = data.O5;"
-                "document.getElementById('M6').value = data.O6;"
-                "document.getElementById('M7').value = data.O7;"
-                "document.getElementById('M8').value = data.O8;"
-                "document.getElementById('M9').value = data.O9;"
-                "document.getElementById('M10').value = data.O10;"
-                "document.getElementById('M11').value = data.O11;"
-                "document.getElementById('M12').value = data.O12;"
-                "document.getElementById('M13').value = data.O13;"
-                "document.getElementById('M14').value = data.O14;"
-                "document.getElementById('M15').value = data.O15;"
+                "document.getElementById('I0').value = data.I0;"
+                "document.getElementById('I1').value = data.I1;"
+                "document.getElementById('O0').value = data.O0;"
+                "document.getElementById('O1').value = data.O1;"
+                "document.getElementById('O2').value = data.O2;"
+                "document.getElementById('O3').value = data.O3;"
                 "setTimeout(updateMeters,50);})"
             ".catch(err => { setTimeout(updateMeters,2000); });"
     "}"
@@ -335,7 +316,7 @@ int chunk_statistics(int id, int len, char* buf)
     switch(step[id]++)
     {
         case 0:  ADD("Time %lld\n\n",now_ns()/1000000000LL);
-                 p += i2s_dma_timing.sntext(len, height, p); *p++='\n'; break;
+                 p += i2s_out0_dma_timing.sntext(len, height, p); *p++='\n'; break;
         default: return 0;
     }
     return p-buf;
@@ -353,11 +334,11 @@ int chunk_cpu(int id, int len, char* buf)
     {
         
         case 0:  p += fft_time.sntext(len, height, p); *p++='\n'; break;
-                 p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
-        case 1:  p += core_stall[0].sntext(len, height, p); *p++='\n'; break;
-        case 2:  p += core_idle[1].sntext(len, height, p); *p++='\n'; break;
-        case 3:  p += core_stall[1].sntext(len, height, p); *p++='\n'; *p++='\n'; break;
-        case 4:  ADD("\n\n\nHTTP CLINETS\n\n"); server.get_client_list(len, p); p = p + strlen(p); *p++='\n'; break;
+        case 1:  p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
+        case 2:  p += core_stall[0].sntext(len, height, p); *p++='\n'; break;
+        case 3:  p += core_idle[1].sntext(len, height, p); *p++='\n'; break;
+        case 4:  p += core_stall[1].sntext(len, height, p); *p++='\n'; *p++='\n'; break;
+        case 5:  ADD("\n\n\nHTTP CLINETS\n\n"); server.get_client_list(len, p); p = p + strlen(p); *p++='\n'; break;
         default: return 0;
     }
     return p-buf;
@@ -373,7 +354,7 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (!name || !arg || len==0 || !buf) return "";
     if (strstr(arg,"clearstats")) 
     { 
-        i2s_dma_timing.clear();
+        i2s_out0_dma_timing.clear();
     }
     if (strstr(arg,"debug")) 
     { 
@@ -482,7 +463,7 @@ void start_web(void)
             for (int n=0; n<2; n++)
             {
                 // Based on the loop taking 1.5us - largely the ::now() and the Histogram.time()
-                const float max_ticks = (float)(idle_check_time_ms*1000000.0F/1E9F/100.0F/1E-6);
+                const float max_ticks = (float)(idle_check_time_ms*1000000.0F/1E9F/100.0F/1.2E-6);
                 if (core_stall[n].N() > core_ticks[n]) core_idle[n].add((float)(core_stall[n].N()-core_ticks[n]) / max_ticks);
                 core_ticks[n] = core_stall[n].N();
             }

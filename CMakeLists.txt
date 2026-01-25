@@ -11,9 +11,9 @@ set(PICO_PLATFORM rp2350)
 set(WIZNET_CHIP W5500)
 add_definitions(-D_WIZCHIP_=W5500)
 add_definitions(-DDEVICE_BOARD_NAME=W5500_EVB_PICO2)
-
-add_definitions(-DPICO_DEFAULT_UART_TX_PIN=28)
-add_definitions(-DPICO_DEFAULT_UART_RX_PIN=29)     
+add_definitions(-DPICO_DEF)
+add_definitions(-DPICO_DEFAULT_UART_TX_PIN=12)
+add_definitions(-DPICO_DEFAULT_UART_RX_PIN=13)     
 
 add_definitions(-Dsyslog_size=128*1024)  # Increase syslog buffer to 128KB
 

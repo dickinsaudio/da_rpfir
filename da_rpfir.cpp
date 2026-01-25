@@ -15,8 +15,8 @@ int main()
     core_idle[0].configure("Core 0 Idle", 0, 100);
     core_idle[1].configure("Core 1 Idle", 0, 100);
 
-    core_stall[0].configure("Core 0 Stall", 0, 0.001);
-    core_stall[1].configure("Core 1 Stall", 0, 0.001);
+    core_stall[0].configure("Core 0 Stall", 0, 0.010);
+    core_stall[1].configure("Core 1 Stall", 0, 0.010);
 
 
     // Set the voltage regulator

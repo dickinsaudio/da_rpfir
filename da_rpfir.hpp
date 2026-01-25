@@ -116,9 +116,10 @@ void stop_audio();
 void w5500_startup(void);
 void w5500_dhcp(void);
 
-extern int32_t audio_out_peaks[16];
+extern int32_t audio_out_peaks[4];
+extern int32_t audio_in_peaks[2];
 
-extern Histogram i2s_dma_timing;
+extern Histogram i2s_out0_dma_timing;
 
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];
