@@ -15,7 +15,7 @@
 // The SPI routine will use the state machine address registers to determine how much of the buffer to use or fill.
 //
 
-#define     CLK_I2S         (192000)                                         
+#define     CLK_I2S         (96000)                                         
 #define     CLK_PIO         (CLK_I2S*64*16)                                 // PIO execution rate (16 cycles each bit of I2S)
 #define     CLK_PIO_DIV_N   ((int)(CLK_SYS/CLK_PIO))                        // PIO clock divider integer part
 #define     CLK_PIO_DIV_F   ((int)(((CLK_SYS%CLK_PIO)*256LL+128)/CLK_PIO))  // PIO clock divider fractional part
@@ -35,7 +35,7 @@ static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RI
 
 #define     I2S_IN_BCLK_PIN     6
 #define     I2S_IN_LRCLK_PIN    7
-#define     I2S_IN_SD_PI        5
+#define     I2S_IN_SD_PIN       5
 #define     I2S_OUT_BCLK_PIN    2
 #define     I2S_OUT_LRCLK_PIN   3
 #define     I2S_OUT_SD0_PIN     1
@@ -67,7 +67,7 @@ Histogram i2s_out1_dma_timing("I2S DMA Timing", 0, .050F);
 
 __not_in_flash() void i2s_dma_handler(void) 
 {
-    dma_hw->ints0 = 1u << i2s_out0_dma2;   // Clear the interrupt request
+    dma_hw->ints0 = 1u << i2s_in_dma2;   // Clear the interrupt request
     int64_t time = now_ns();
     i2s_out0_dma_timing.time(time);
 }
@@ -80,6 +80,9 @@ void i2s_setup()
     uint offset = pio_add_program (I2S_PIO  , &i2s_master_out_program);
     i2s_master_out_init(I2S_PIO, I2S_OUT0_SM, offset, I2S_OUT_BCLK_PIN, I2S_OUT_SD0_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
 
+    offset = pio_add_program (I2S_PIO  , &i2s_in_program);  
+    i2s_in_init(I2S_PIO, I2S_IN_SM, offset, I2S_IN_LRCLK_PIN, I2S_IN_SD_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);
+    
     // SETUP DMA FOR I2S OUTPUT
     //
     
@@ -104,49 +107,54 @@ void i2s_setup()
     channel_config_set_ring              (&c, false, I2S_TRIG_RING);    // The address update ring is 2^3=8 bytes (two words)
     channel_config_set_high_priority     (&c, true);
     dma_channel_configure  (i2s_out0_dma2, &c, &dma_hw->ch[i2s_out0_dma1].al3_read_addr_trig,  i2s_out0_trigger, 1, false);
-    dma_channel_set_irq0_enabled(i2s_out0_dma2, true);
-    irq_set_exclusive_handler(DMA_IRQ_0, i2s_dma_handler);
 
     printf("INITIAL DMA Pointers I2S OUT0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_out0_dma1].read_addr, (void*)dma_hw->ch[i2s_out0_dma1].write_addr);
 
-    /*
+    
     // SETUP DMA FOR I2S INPUT
     //
 
-    i2s_in0_dma1 = dma_claim_unused_channel(true);
-    i2s_in0_dma2 = dma_claim_unused_channel(true);  
+    i2s_in_dma1 = dma_claim_unused_channel(true);
+    i2s_in_dma2 = dma_claim_unused_channel(true);  
     
-    c = dma_channel_get_default_config(i2s_in0_dma1);    // First DMA does the data transfer
+    c = dma_channel_get_default_config(i2s_in_dma1);    // First DMA does the data transfer
     channel_config_set_read_increment    (&c,  false);
     channel_config_set_write_increment   (&c,  true);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
-    channel_config_set_dreq              (&c, pio_get_dreq(I2S_PIO, I2S_SM0, true));
-    channel_config_set_chain_to          (&c, i2s_in0_dma2);                   
+    channel_config_set_dreq              (&c, pio_get_dreq(I2S_PIO, I2S_IN_SM, false));
+    channel_config_set_chain_to          (&c, i2s_in_dma2);                   
     channel_config_set_high_priority     (&c, false);
-    dma_channel_configure(i2s_in0_dma1, &c, i2s_in[0], &I2S_PIO->rxf[I2S_SM0], I2S_CHANS*I2S_BLOCK/I2S_LINES, false);
+    dma_channel_configure(i2s_in_dma1, &c, i2s_in, &I2S_PIO->rxf[I2S_IN_SM], I2S_CHANS*I2S_BLOCK, false);
 
-    for (int n=0; n<I2S_BUFFER/I2S_BLOCK; n++) i2s_in0_trigger[n] = (int32_t)&i2s_in[0][n*I2S_CHANS*I2S_BLOCK/I2S_LINES];
+    for (int n=0; n<I2S_BUFFER/I2S_BLOCK; n++) i2s_in_trigger[n] = (int32_t)&i2s_in[n*I2S_CHANS*I2S_BLOCK];
 
-    c = dma_channel_get_default_config   (i2s_in0_dma2);                // The second DMA does the control block
+    c = dma_channel_get_default_config   (i2s_in_dma2);                // The second DMA does the control block
     channel_config_set_read_increment    (&c, true);                    // updating the address after each data
     channel_config_set_write_increment   (&c, false);                   // set.  Addresses should be continuous
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);             // and effectice ring of 2 x block
     channel_config_set_ring              (&c, false, I2S_TRIG_RING);    // The address update ring is 2^3=8 bytes (two words)
     channel_config_set_high_priority     (&c, true);
-    dma_channel_configure  (i2s_in0_dma2, &c, &dma_hw->ch[i2s_in0_dma1].al2_write_addr_trig,  i2s_in0_trigger, 1, false);
-    */
+    dma_channel_configure  (i2s_in_dma2, &c, &dma_hw->ch[i2s_in_dma1].al2_write_addr_trig,  i2s_in_trigger, 1, false);
+
+    printf("INITIAL DMA Pointers I2S IN: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_in_dma1].read_addr, (void*)dma_hw->ch[i2s_in_dma1].write_addr);
+    printf("INITIAL PIO0 I2S IN SM PC: %d \n", pio_sm_get_pc(I2S_PIO, I2S_IN_SM));
+
 
     Notice("STARTING I2S");
-    
-    irq_set_priority(DMA_IRQ_0, 0x20);                  // Set I2S to highest priorit
+
+    dma_channel_set_irq0_enabled(i2s_in_dma2, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, i2s_dma_handler);
+    irq_set_priority(DMA_IRQ_0, 0x20);                  // Set I2S to highest priority
     irq_set_enabled(DMA_IRQ_0, true);
-    dma_start_channel_mask(1u << i2s_out0_dma1);        // I2S DMA
-    //dma_start_channel_mask(1u << i2s_in0_dma1);
-    pio_enable_sm_mask_in_sync(I2S_PIO, 1 << I2S_OUT0_SM);        // Start the IS2
+    dma_start_channel_mask(1u << i2s_out0_dma1);
+    dma_start_channel_mask(1u << i2s_in_dma1);
+    sleep_us(20);
+
+    pio_enable_sm_mask_in_sync(I2S_PIO, (1 << I2S_OUT0_SM) | (1 << I2S_IN_SM) );        // Start the IS2
+//    pio_enable_sm_mask_in_sync(I2S_PIO, (1 << I2S_OUT0_SM));
 
 }
-
-
+ 
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +220,13 @@ void core_audio()
         {
 
             // TODO Any logging here
-            printf("DMA Pointers I2S OUT0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_out0_dma1].read_addr, (void*)dma_hw->ch[i2s_out0_dma1].write_addr);
+            // printf("DMA Pointers I2S IN0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_in_dma1].read_addr, (void*)dma_hw->ch[i2s_in_dma1].write_addr);
+            printf("Incoming data %08x %08x %08x %08x %08x %08x %08x %08x\n",
+                ((uint32_t*)i2s_in)[0], ((uint32_t*)i2s_in)[1], ((uint32_t*)i2s_in)[2], ((uint32_t*)i2s_in)[3],
+                ((uint32_t*)i2s_in)[4], ((uint32_t*)i2s_in)[5], ((uint32_t*)i2s_in)[6], ((uint32_t*)i2s_in)[7]
+            );
+            
+
 
             core_stall[get_core_num()].start();         // Avoid spurious stall measured from the printf
             last_dump = now;

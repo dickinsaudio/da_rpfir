@@ -48,8 +48,6 @@ int main()
     flash_state(buffer, sizeof(buffer));
     Notice("%s",buffer);
 
-    sleep_ms(5000);                       // Let the clocks stabilize
-
     Notice("*********************************************");
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();

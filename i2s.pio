@@ -13,30 +13,23 @@
 
 
 public entry_point:
-    jmp pin entry_point                 ; Wait for LRCLK to fall
-    set x, 1                            ; 2 words in a frame
-    set y, 29                           ; 32 bits in a word (one is with push and one at end)
-    nop                  [29]
-    nop                  [31]
-    jmp bit              [31]           ; Skip the first 1.5 clock cycle and the first push
+    jmp pin stall                       ; Wait for LRCLK to become high
+    set y, 29
+    jmp entry_point
 word:
-    nop                  [28]           ; Wait out the rest of the last cycle
-    nop                  [31]
+    nop                  [12]           ; Wait out the rest of the last cycle
 .wrap_target
-    in pins, 1           [31]           ; Get last bit of the word
-    push noblock         [31]
+    in pins, 1           [7]           ; Get last bit of the word
+    push noblock         [7]
 bit:
-    in pins, 1           [31]           ; Get a bit
-    jmp y-- bit          [31]           ;  
+    in pins, 1           [7]            ; Get a bit
+    jmp y-- bit          [7]            ;  
     in pins, 1
     set y, 29                           ;
-    jmp x-- word                        ; Repeat this 8 times
-stall0:
-    jmp pin stall1                      ; Wait for LRCLK to become
-    jmp stall0                          ; high (should already be high)
-stall1:
-    jmp pin stall1                      ; Wait for LRCLK to fall
-    set x, 1             [31]           ; Skip the first half clock cycle
+    jmp x-- word                        ; 
+stall:
+    jmp pin stall                       ; Wait for LRCLK to fall
+    set x, 1             [7]            ; Skip the first half clock cycle
 .wrap                                   ; Return to the start
 
 
