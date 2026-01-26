@@ -308,6 +308,7 @@ int chunk_statistics(int id, int len, char* buf)
     {
         case 0:  ADD("Time %lld\n\n",now_ns()/1000000000LL);
                  p += i2s_dma_timing.sntext(len, height, p); *p++='\n'; break;
+        case 1:  p += i2s_dma_execution.sntext(len, height, p); *p++='\n'; *p++='\n'; break;
         default: return 0;
     }
     return p-buf;
@@ -320,16 +321,13 @@ int chunk_cpu(int id, int len, char* buf)
     if (len==0 || buf==0) { step[id]=0; return 0; };
     char *p = buf;
     int height = 12;
-    extern Histogram fft_time;
     switch(step[id]++)
     {
-        
-        case 0:  p += fft_time.sntext(len, height, p); *p++='\n'; break;
-        case 1:  p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
-        case 2:  p += core_stall[0].sntext(len, height, p); *p++='\n'; break;
-        case 3:  p += core_idle[1].sntext(len, height, p); *p++='\n'; break;
-        case 4:  p += core_stall[1].sntext(len, height, p); *p++='\n'; *p++='\n'; break;
-        case 5:  ADD("\n\n\nHTTP CLINETS\n\n"); server.get_client_list(len, p); p = p + strlen(p); *p++='\n'; break;
+        case 0:  p += core_idle[0].sntext(len, height, p); *p++='\n'; break;
+        case 1:  p += core_stall[0].sntext(len, height, p); *p++='\n'; break;
+        case 2:  p += core_idle[1].sntext(len, height, p); *p++='\n'; break;
+        case 3:  p += core_stall[1].sntext(len, height, p); *p++='\n'; *p++='\n'; break;
+        case 4:  ADD("\n\n\nHTTP CLINETS\n\n"); server.get_client_list(len, p); p = p + strlen(p); *p++='\n'; break;
         default: return 0;
     }
     return p-buf;

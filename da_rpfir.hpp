@@ -119,6 +119,7 @@ extern int32_t audio_out_peaks[2];
 extern int32_t audio_in_peaks[2];
 
 extern Histogram i2s_dma_timing;
+extern Histogram i2s_dma_execution;
 
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];
