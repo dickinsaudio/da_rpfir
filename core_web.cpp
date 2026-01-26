@@ -86,8 +86,6 @@ static char __in_flash() page_prefix[] =
     "<br>"
     "<progress id=\"O0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
     "<progress id=\"O1\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"O2\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<progress id=\"O3\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
     "<script>updateMeters();</script>";
 
 
@@ -100,8 +98,6 @@ static char __in_flash() page_scripts[] =
                 "document.getElementById('I1').value = data.I1;"
                 "document.getElementById('O0').value = data.O0;"
                 "document.getElementById('O1').value = data.O1;"
-                "document.getElementById('O2').value = data.O2;"
-                "document.getElementById('O3').value = data.O3;"
                 "setTimeout(updateMeters,50);})"
             ".catch(err => { setTimeout(updateMeters,2000); });"
     "}"
@@ -381,7 +377,10 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     return ""; 
 }
 
-int out_meters[16]={};
+int out_meters[2]={};
+int in_meters[2]={};
+
+
 const char *cgi_get(const char* name, const char* arg, int len, char *buf)
 {
     if (!name || !arg || len==0 || !buf) return "";
@@ -392,6 +391,8 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
     {
         int channels = (int)(sizeof(out_meters)/sizeof(int32_t));
         for (int i=0; i<channels; i++) ADD("\"O%d\":%d,",i,out_meters[i]);
+        channels = (int)(sizeof(in_meters)/sizeof(int32_t));
+        for (int i=0; i<channels; i++) ADD("\"I%d\":%d,",i,in_meters[i]);
     }
 
     p[-1]='}';
@@ -491,8 +492,21 @@ void start_web(void)
                 out_meters[n] = val;
                 audio_out_peaks[n]=0;
             }
-        }
 
+            channels = (int)(sizeof(in_meters)/sizeof(int32_t));
+            for (int n=0; n<channels; n++)
+            {
+                int old = in_meters[n];
+                int val = (1000.0F+300.0F*log10f((200.0F+audio_in_peaks[n])/(float)(0x7FFFFFFFL))+0.5)+8;
+                
+                if (val < old) val = old;
+                val = val - 8;
+
+                if (val<0) val = 0;
+                in_meters[n] = val;
+                audio_in_peaks[n]=0;
+            }
+        }
         if (now > next_web)
         {
             next_web += 1000000LL;  

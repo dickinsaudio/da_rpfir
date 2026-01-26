@@ -86,6 +86,35 @@ bit1:
 .wrap
 
 
+.program i2s_follower_out
+;
+; Jmp pin is     LRCLK
+; Output pin is  D0
+; Side set is LRCLK BCLK out
+
+.side_set 2
+
+public entry_point:
+    jmp pin start               side 0b10   ; Wait for LRCLK to become high
+    jmp entry_point             side 0b00   ;
+.wrap_target
+start:
+    jmp pin start               side 0b10   ; Wait for LRCLK to become low
+    out pins, 1          [2]    side 0b00   ; Last bit of previous word
+    pull noblock         [3]    side 0b00   ; 
+    set y, 30            [7]    side 0b01   ; 
+bit0:
+    out pins, 1          [7]    side 0b00   ; Push out bits
+    jmp y-- bit0         [7]    side 0b01   ;  
+    out pins, 1          [3]    side 0b10   ; Push last bit         
+    pull noblock         [3]    side 0b10
+    set y, 30            [7]    side 0b11    
+bit1:
+    out pins, 1          [7]    side 0b10   ; Push out bits
+    jmp y-- bit1         [7]    side 0b11   ;  
+.wrap
+
+
 
 .program i2s_mck
 ; Transmit an I2S system / master clock.
@@ -154,7 +183,26 @@ static inline void i2s_slave_out_init(PIO pio, uint8_t sm, int offset, int lrclk
     pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
 }
 
+static inline void i2s_follower_out_init(PIO pio, uint8_t sm, int offset, int lrclk_in, int dout, int bclk_out, int divN, int divF) 
+{
+    pio_gpio_init(pio, lrclk_in);
+    pio_gpio_init(pio, dout);
+    pio_gpio_init(pio, bclk_out);
+    pio_gpio_init(pio, bclk_out+1);
 
+    pio_sm_config sm_config = i2s_follower_out_program_get_default_config(offset);
+    sm_config_set_jmp_pin  (&sm_config, lrclk_in);
+    sm_config_set_out_pins (&sm_config, dout, 1);
+    sm_config_set_sideset_pins (&sm_config, bclk_out);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
+    pio_sm_init(pio, sm, offset + i2s_follower_out_offset_entry_point, &sm_config);
+    uint32_t pin_mask = (1 << lrclk_in);   
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
+    pin_mask = (1 << dout) | (3 << bclk_out);   
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
+    pio_sm_set_pins_with_mask(pio, sm, 0, pin_mask);
+    pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
 
 static void i2s_mck_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t mck_pin, int divN, int divF) {
     pio_gpio_init               (pio, mck_pin);

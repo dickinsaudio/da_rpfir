@@ -46,7 +46,7 @@ int32_t     i2s_out0[I2S_CHANS*I2S_BUFFER]  = { (int32_t)0xFF00FF00, (int32_t)0x
 //int32_t     i2s_out1[I2S_CHANS*I2S_BUFFER];
 
 int32_t  audio_in_peaks[2] = {};              // The output audio meters
-int32_t  audio_out_peaks[4] = {};             // The output audio meters
+int32_t  audio_out_peaks[2] = {};             // The output audio meters
 
 int      i2s_in_dma1      = -1;
 int      i2s_in_dma2      = -1;
@@ -68,7 +68,19 @@ Histogram i2s_out1_dma_timing("I2S DMA Timing", 0, .050F);
 __not_in_flash() void i2s_dma_handler(void) 
 {
     dma_hw->ints0 = 1u << i2s_in_dma2;   // Clear the interrupt request
-    int buffer = ((int32_t*)dma_hw->ch[i2s_in_dma1].write_addr >= &i2s_in[I2S_CHANS*I2S_BLOCK]) ? 1 : 0;
+    int buffer = ((int32_t*)dma_hw->ch[i2s_in_dma1].write_addr >= &i2s_in[I2S_CHANS*I2S_BLOCK]) ? 0 : 1;
+    // Get peak absolute values for left and right channels
+    int32_t *p = &i2s_in[buffer*I2S_CHANS*I2S_BLOCK];
+    for (int n = 0; n < I2S_BLOCK; n++) 
+    {
+        int32_t val = abs(*p++);
+        if (audio_in_peaks[0] < val)               audio_in_peaks[0] = val;
+        val = abs(*p++);
+        if (audio_in_peaks[1] < val)               audio_in_peaks[1] = val;
+    }
+    audio_out_peaks[0] = audio_in_peaks[0];   // Simple loopback for now
+    audio_out_peaks[1] = audio_in_peaks[1];
+
     memcpy(&i2s_out0[buffer*I2S_CHANS*I2S_BLOCK], &i2s_in[buffer*I2S_CHANS*I2S_BLOCK], I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
     int64_t time = now_ns();
     i2s_out0_dma_timing.time(time);
@@ -79,8 +91,8 @@ void i2s_setup()
     Notice("SETTING UP I2S DMA");
     
     pio_clear_instruction_memory(I2S_PIO);
-    uint offset = pio_add_program (I2S_PIO  , &i2s_slave_out_program);
-    i2s_slave_out_init(I2S_PIO, I2S_OUT0_SM, offset, I2S_IN_LRCLK_PIN, I2S_OUT_SD0_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
+    uint offset = pio_add_program (I2S_PIO  , &i2s_follower_out_program);
+    i2s_follower_out_init(I2S_PIO, I2S_OUT0_SM, offset, I2S_IN_LRCLK_PIN, I2S_OUT_SD0_PIN, I2S_OUT_BCLK_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
 
     offset = pio_add_program (I2S_PIO  , &i2s_in_program);  
     i2s_in_init(I2S_PIO, I2S_IN_SM, offset, I2S_IN_LRCLK_PIN, I2S_IN_SD_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);
@@ -184,8 +196,8 @@ int64_t next_fft   = now_ns()+5000000000;
 
 #include "arm_math.h"
                                                     
-float32_t   buf_x[2*N_FFT] = { };                   
-float32_t   buf_y[CHANS][2*N_FFT] = { };            
+float32_t   buf_x[2*N_FFT];                   
+float32_t   buf_y[CHANS][2*N_FFT];            
 float32_t   buf_X[M_FIR][2*N_FFT];
 float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
