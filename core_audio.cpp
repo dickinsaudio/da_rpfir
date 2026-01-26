@@ -214,6 +214,11 @@ void fir_setup()
     #endif
     if (status != ARM_MATH_SUCCESS) Notice("FFT INIT FAILED %d", status);
     else                            Notice("FFT INIT SUCCESS");
+
+    memset(buf_tmp, 0, sizeof(buf_tmp));
+    buf_tmp[0] = 1.0f;
+    arm_rfft_fast_f32(&FFT, buf_tmp, buf_H[0][0], 0);
+
 }
 
 void fir_compute(int32_t *x, int32_t *y)
@@ -230,9 +235,9 @@ void fir_compute(int32_t *x, int32_t *y)
         memset(buf_Y, 0, sizeof(buf_Y));
         for (int n=0; n<M_FIR; n++)
         {
-            arm_cmplx_mult_cmplx_f32(buf_X[(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, 2048);
-            buf_tmp[0] = buf_X[n][0] * buf_H[i][n][0];    // DC component
-            buf_tmp[1] = buf_X[n][1] * buf_H[i][n][1];
+            arm_cmplx_mult_cmplx_f32(buf_X[(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, N_FFT);
+            buf_tmp[0] = buf_X[(m-n+M_FIR)%M_FIR][0] * buf_H[i][n][0];    // DC component
+            buf_tmp[1] = buf_X[(m-n+M_FIR)%M_FIR][1] * buf_H[i][n][1];
             arm_add_f32(buf_Y, buf_tmp, buf_Y, 2*N_FFT);
         }
         memset(buf_tmp, 0, sizeof(buf_tmp));
