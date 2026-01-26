@@ -76,6 +76,10 @@ target_compile_definitions(cmsis_dsp PUBLIC
 # Optional: if you want CMSIS-DSP hotter than the rest of your code
 target_compile_options(cmsis_dsp PRIVATE -O3)
 
+# Enable garbage collection of unused sections (critical for removing unused FFT tables)
+target_compile_options(cmsis_dsp PRIVATE -ffunction-sections -fdata-sections)
+target_link_options(cmsis_dsp PUBLIC -Wl,--gc-sections)
+
 if(NOT DEFINED WIZNET_DIR)
     set(WIZNET_DIR ${CMAKE_SOURCE_DIR}/WIZnet-PICO-C/libraries/ioLibrary_Driver)
     message(STATUS "WIZNET_DIR = ${WIZNET_DIR}")
@@ -105,7 +109,12 @@ add_compile_options(
         -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
         -Wno-unused-function # we have some for the docs that aren't called
         -Wno-maybe-uninitialized
+        -ffunction-sections  # Put each function in its own section for garbage collection
+        -fdata-sections      # Put each data item in its own section for garbage collection
         )
+
+# Enable linker garbage collection to remove unused code/data
+add_link_options(-Wl,--gc-sections)
 
     
 # Add libraries in subdirectories

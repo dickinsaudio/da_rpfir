@@ -312,7 +312,7 @@ int chunk_statistics(int id, int len, char* buf)
     switch(step[id]++)
     {
         case 0:  ADD("Time %lld\n\n",now_ns()/1000000000LL);
-                 p += i2s_out0_dma_timing.sntext(len, height, p); *p++='\n'; break;
+                 p += i2s_dma_timing.sntext(len, height, p); *p++='\n'; break;
         default: return 0;
     }
     return p-buf;
@@ -350,7 +350,7 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (!name || !arg || len==0 || !buf) return "";
     if (strstr(arg,"clearstats")) 
     { 
-        i2s_out0_dma_timing.clear();
+        i2s_dma_timing.clear();
     }
     if (strstr(arg,"debug")) 
     { 
