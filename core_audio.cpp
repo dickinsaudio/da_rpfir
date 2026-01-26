@@ -54,15 +54,19 @@ int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out_trigger[I2S_BUFFER/I2S_BLOCK];
 Histogram i2s_dma_timing("I2S DMA Timing", 0, .050F);
 Histogram i2s_dma_execution("I2S DMA Execution", 0, .050F);
 
-void fir_compute();
+void fir_compute(int32_t *x, int32_t *y);
 
 __not_in_flash() void i2s_dma_handler(void) 
 {
     dma_hw->ints0 = 1u << i2s_in_dma2;   // Clear the interrupt request
     int64_t time = now_ns();
+    i2s_dma_timing.time(time);
+    i2s_dma_execution.start(time);
     int buffer = ((int32_t*)dma_hw->ch[i2s_in_dma1].write_addr >= &i2s_in[I2S_CHANS*I2S_BLOCK]) ? 0 : 1;
+    int32_t *in_ptr = &i2s_in[buffer*I2S_CHANS*I2S_BLOCK];
+    int32_t *out_ptr = &i2s_out[buffer*I2S_CHANS*I2S_BLOCK];
 
-    int32_t *p = &i2s_in[buffer*I2S_CHANS*I2S_BLOCK];
+    int32_t *p = in_ptr;
     for (int n = 0; n < I2S_BLOCK; n++) 
     {
         int32_t val = abs(*p++);
@@ -70,17 +74,20 @@ __not_in_flash() void i2s_dma_handler(void)
         val = abs(*p++);
         if (audio_in_peaks[1] < val)               audio_in_peaks[1] = val;
     }
-    audio_out_peaks[0] = audio_in_peaks[0];   // Simple loopback for now
-    audio_out_peaks[1] = audio_in_peaks[1];
+    
+    //memcpy(&i2s_out[buffer*I2S_CHANS*I2S_BLOCK], &i2s_in[buffer*I2S_CHANS*I2S_BLOCK], I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
+    fir_compute(in_ptr, out_ptr);
 
-    memcpy(&i2s_out[buffer*I2S_CHANS*I2S_BLOCK], &i2s_in[buffer*I2S_CHANS*I2S_BLOCK], I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
-    i2s_dma_timing.time(time);
-    i2s_dma_execution.start(time);
-
-    fir_compute();
+    p = out_ptr;
+    for (int n = 0; n < I2S_BLOCK; n++) 
+    {
+        int32_t val = abs(*p++);
+        if (audio_out_peaks[0] < val)               audio_out_peaks[0] = val;
+        val = abs(*p++);
+        if (audio_out_peaks[1] < val)               audio_out_peaks[1] = val;
+    }
 
     i2s_dma_execution.time();
-
 }
 
 void i2s_setup()
@@ -177,7 +184,6 @@ void i2s_setup()
 #define CHANS       2               // The number of output channels
                                                     
 float32_t   buf_x[2*N_FFT];                   
-float32_t   buf_y[CHANS][2*N_FFT];            
 float32_t   buf_X[M_FIR][2*N_FFT];
 float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
@@ -187,7 +193,6 @@ arm_rfft_fast_instance_f32 FFT;
 void fir_setup()
 { 
     memset(buf_x, 0, sizeof(buf_x));
-    memset(buf_y, 0, sizeof(buf_y));
     memset(buf_X, 0, sizeof(buf_X));
     memset(buf_H, 0, sizeof(buf_H));
     memset(buf_Y, 0, sizeof(buf_Y));
@@ -195,31 +200,46 @@ void fir_setup()
     memset(i2s_out, 0, sizeof(i2s_out));
     memset(audio_in_peaks, 0, sizeof(audio_in_peaks));
     memset(audio_out_peaks, 0, sizeof(audio_out_peaks));    
+    buf_x[T_FFT] = 1.0F;
 
+    for (int n=0; n<N_FFT; n++) buf_H[0][0][2*n] = 0.5F; 
+    //buf_H[0][0][1] = 0.5F;
+
+    #if N_FFT == 2048
     arm_status status = arm_rfft_fast_init_4096_f32(&FFT);
+    #elif N_FFT == 1024
+    arm_status status = arm_rfft_fast_init_2048_f32(&FFT);
+    #else
+    #error "FFT SIZE NOT SUPPORTED"
+    #endif
     if (status != ARM_MATH_SUCCESS) Notice("FFT INIT FAILED %d", status);
     else                            Notice("FFT INIT SUCCESS");
 }
 
-void fir_compute()
+void fir_compute(int32_t *x, int32_t *y)
 {
-    memmove(buf_x, buf_x+T_FFT, 2*N_FFT -  T_FFT);
-    for (int n=0; n<T_FFT; n++) buf_x[2*N_FFT - T_FFT + n] = rand(); 
+    memmove(buf_x, buf_x+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
+
+    for (int n=0; n<T_FFT; n++) buf_x[2*N_FFT - T_FFT + n] = x[2*n]*(1.0F/0x80000000);      // Only taking left channel
+    memmove(buf_tmp, buf_x, 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
 
     static int m=0;
-    arm_rfft_fast_f32(&FFT, buf_x, buf_X[m], 0);   m = (m+1)%M_FIR;
+    arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[m], 0);
     for (int i=0; i<CHANS; i++)
     {   
         memset(buf_Y, 0, sizeof(buf_Y));
         for (int n=0; n<M_FIR; n++)
         {
-            arm_cmplx_mult_cmplx_f32(buf_X[n], buf_H[i][n], buf_tmp, 2048);
-            if (n>0) arm_add_f32(buf_Y, buf_tmp, buf_Y, 2*N_FFT);
+            arm_cmplx_mult_cmplx_f32(buf_X[(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, 2048);
+            buf_tmp[0] = buf_X[n][0] * buf_H[i][n][0];    // DC component
+            buf_tmp[1] = buf_X[n][1] * buf_H[i][n][1];
+            arm_add_f32(buf_Y, buf_tmp, buf_Y, 2*N_FFT);
         }
-        arm_rfft_fast_f32(&FFT, buf_tmp, buf_Y, 1);
-        memmove(buf_y[i], buf_y[i]+T_FFT, 2*N_FFT -  T_FFT);
-        for (int n=0; n<T_FFT; n++) buf_y[i][2*N_FFT - T_FFT + n] = buf_Y[n];
+        memset(buf_tmp, 0, sizeof(buf_tmp));
+        arm_rfft_fast_f32(&FFT, buf_Y, buf_tmp, 1);
+        for (int n=0; n<T_FFT; n++) y[2*n + i] = buf_tmp[2*N_FFT - T_FFT + n] * (0x80000000);
     }
+    m = (m+1)%M_FIR;
 }
 
 
@@ -252,8 +272,6 @@ void core_audio()
     fir_setup();
     i2s_setup();
 
-
-    for (int n=0; n<(int)(sizeof(buf_H)/sizeof(float32_t)); n++) (&buf_H[0][0][0])[n] = rand(); 
     while(1)
     {
         int64_t now = now_ns();
@@ -274,7 +292,8 @@ void core_audio()
                 ((uint32_t*)i2s_out)[0], ((uint32_t*)i2s_out)[1], ((uint32_t*)i2s_out)[2], ((uint32_t*)i2s_out)[3],
                 ((uint32_t*)i2s_out)[4], ((uint32_t*)i2s_out)[5], ((uint32_t*)i2s_out)[6], ((uint32_t*)i2s_out)[7]
             );
-
+            
+            printf("buf_X data %8.5f + j %8.5f\n", buf_X[0][0], buf_X[0][1]);
 
             core_stall[get_core_num()].start();         // Avoid spurious stall measured from the printf
             last_dump = now;
