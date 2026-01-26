@@ -85,7 +85,6 @@ extern const char* DEVICE_BOARD_NAME_STRING[];
 #include "log.hpp"
 #include "histogram.hpp"
 #include "http_server.hpp"
-#include "stretch.hpp"
 #include "upsample.h"
 #include "deinterleave.h"
 #include "dma.h"

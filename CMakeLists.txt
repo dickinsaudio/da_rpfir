@@ -146,25 +146,6 @@ message(STATUS "GIT_HASH:   ${GIT_COMMIT_HASH}")
 message(STATUS "GIT_TAG:    ${GIT_TAG}")
 
 
-if(GIT_FOUND)
-    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/daes67 OUTPUT_VARIABLE GIT_DAES67_BRANCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-    execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse --short=7 HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/daes67 OUTPUT_VARIABLE GIT_DAES67_HASH OUTPUT_STRIP_TRAILING_WHITESPACE)
-    execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/daes67 OUTPUT_VARIABLE GIT_DAES67_TAG OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-    if(NOT GIT_DAES67_TAG)
-        set(GIT_DAES67_TAG "")
-    endif()
-else()
-    set(GIT_DAES67_BRANCH "unknown")
-    set(GIT_DAES67_HASH "unknown")
-    set(GIT_DAES67_TAG "")
-endif()
-add_definitions(-DGIT_DAES67_BRANCH="${GIT_DAES67_BRANCH}")
-add_definitions(-DGIT_DAES67_HASH="${GIT_DAES67_HASH}")
-add_definitions(-DGIT_DAES67_TAG="${GIT_DAES67_TAG}")
-message(STATUS "GIT_DAES67_BRANCH: ${GIT_DAES67_BRANCH}")
-message(STATUS "GIT_DAES67_HASH:   ${GIT_DAES67_HASH}")
-message(STATUS "GIT_DAES67_TAG:    ${GIT_DAES67_TAG}")
-
 
 add_executable(da_rpfir) 
 target_compile_definitions(da_rpfir PRIVATE PFB_AES_KEY="${PFB_AES_KEY}")
@@ -180,14 +161,12 @@ Target_sources(da_rpfir   PRIVATE
                             core_web.cpp 
                             w5500_udp.cpp
                             flash.cpp
-                            daes67/src/histogram.cpp 
-                            daes67/src/log.cpp 
-                            daes67/src/stretch.cpp 
-                            daes67/src/stretch_math.cpp
-                            daes67/src/http_server.cpp
+                            daes67_lite/histogram.cpp 
+                            daes67_lite/log.cpp 
+                            daes67_lite/http_server.cpp
                             )
 
-target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67/include)
+target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)
 
 
 pico_set_program_name(da_rpfir "da_rpfir")

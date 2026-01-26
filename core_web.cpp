@@ -50,11 +50,7 @@
 #define HTTP_SOCKETS (3)            // Number of sockets to use for HTTP
 
 
-#define         stretch_trace_size      (500)
-#define         stretch_trace_time_ms   (1000)         // Time between trace records in ms
 #define         idle_check_time_ms      (1000)         // Time between idle checks in ms
-stretch_trace_t stretch_trace[stretch_trace_size] = {};
-int32_t         stretch_trace_pos = 0;
 HttpServer      server;
 
 
@@ -247,8 +243,7 @@ const char *cgi_sys(const char* name, const char* arg, int len, char *buf)
         #define STR(x) #x
         #define STRING(x) STR(x)
         ADD("DEVICE BUILD        RPFIR (V%ld) - %s\n",0,DEVICE_BOARD_NAME_STRING[DEVICE_BOARD_NAME]);
-        ADD("DONGLE GIT VERSION  %s(%s)   %s\n",GIT_BRANCH, GIT_HASH, GIT_TAG);
-        ADD("DAES67 GIT VERSION  %s(%s)   %s\n",GIT_DAES67_BRANCH, GIT_DAES67_HASH, GIT_DAES67_TAG);
+        ADD("GIT VERSION         %s(%s)   %s\n",GIT_BRANCH, GIT_HASH, GIT_TAG);
         ADD("BUILD TIME          %s %s\n",__DATE__, __TIME__);
         ADD("<h2>FLASH INFO</h2><pre class=\"info\">");
         int f = flash_state(p,len); p+=f; len-=f;
