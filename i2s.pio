@@ -13,9 +13,13 @@
 
 
 public entry_point:
-    jmp pin stall                       ; Wait for LRCLK to become high
-    set y, 29
+    jmp pin high                        ; Wait for LRCLK to become high
     jmp entry_point
+high:
+    jmp pin high                        ; Wait for it to become low
+    set x,1
+    set y,30     
+    jmp bit
 word:
     nop                  [12]           ; Wait out the rest of the last cycle
 .wrap_target
@@ -28,6 +32,8 @@ bit:
     set y, 29                           ;
     jmp x-- word                        ; 
 stall:
+; TODO  We really should also ensure that LRCLK is high here.  It should always be the case,
+; TODO  unless the I2S stutters.  In which case we can get skewed data.
     jmp pin stall                       ; Wait for LRCLK to fall
     set x, 1             [7]            ; Skip the first half clock cycle
 .wrap                                   ; Return to the start

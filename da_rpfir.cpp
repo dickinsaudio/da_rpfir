@@ -12,6 +12,19 @@ int main()
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
     for (int n=0; n<32; n++) gpio_set_pulls(n, false,false);    // No pullups or pulldowns
 
+    gpio_init(10);                             // PMIC on Amp disable
+    gpio_set_dir(10, GPIO_OUT);
+    gpio_put(26, 0);      
+
+    gpio_init(27);                             // DAC disable
+    gpio_set_dir(27, GPIO_OUT);
+    gpio_put(27, 0);
+
+    gpio_init(8);                             // DAC disable
+    gpio_set_dir(8, GPIO_OUT);
+    gpio_put(8,1);
+
+
     core_idle[0].configure("Core 0 Idle", 0, 100);
     core_idle[1].configure("Core 1 Idle", 0, 100);
 
@@ -52,6 +65,9 @@ int main()
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();
     Notice("STARTING WEB SERVER");
+
+    gpio_put(10, 1);      
+    gpio_put(27, 1);
     start_web();
     
     rom_reset_usb_boot(-1,0);       // Back to bootloader
