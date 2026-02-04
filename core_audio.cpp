@@ -29,7 +29,7 @@
 #include <cassert>
 static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RING must be log2(I2S_BUFFER / I2S_BLOCK * 4)");
 
-#if 0
+#if 1
 // The EVK board
 #define     I2S_IN_BCLK_PIN     6
 #define     I2S_IN_LRCLK_PIN    7
@@ -836,7 +836,9 @@ void core_audio()
         {
 
             // TODO Any logging here
-            // printf("DMA Pointers I2S IN0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_in_dma1].read_addr, (void*)dma_hw->ch[i2s_in_dma1].write_addr);
+            //printf("DMA Pointers I2S IN0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_in_dma1].read_addr, (void*)((char *)dma_hw->ch[i2s_in_dma1].write_addr-(char *)i2s_in));
+            //printf("SM Program Counter I2S IN0: %04x\n", I2S_PIO->sm[I2S_IN_SM].addr);
+
             
             printf("Incoming data %08x %08x %08x %08x %08x %08x %08x %08x\n",
                 ((uint32_t*)i2s_in)[0], ((uint32_t*)i2s_in)[1], ((uint32_t*)i2s_in)[2], ((uint32_t*)i2s_in)[3],
@@ -847,7 +849,9 @@ void core_audio()
                 ((uint32_t*)i2s_out)[4], ((uint32_t*)i2s_out)[5], ((uint32_t*)i2s_out)[6], ((uint32_t*)i2s_out)[7]
             );
             
-            printf("buf_X data %8.5f + j %8.5f\n", buf_X[0][0], buf_X[0][1]);
+            //printf("buf_X data %8.5f + j %8.5f\n", buf_X[0][0], buf_X[0][1]);
+            
+
 
             core_stall[get_core_num()].start();         // Avoid spurious stall measured from the printf
             last_dump = now;
