@@ -12,14 +12,14 @@
 ; And falling edge LR is the start of frame
 
 
-public entry_point:
-high:
+public entry_point:                     ; Note we start on a rising edge, as the first
+high:                                   ; bit will push a zero L word, and then we are on R
     jmp pin high                        ; Wait for LRCLK to become low
 low:
     jmp pin start                       ; Wait for LRCLK to become high
     jmp low
 start:
-     set x,1             [5]             ; On rising edge, and wait half bit                                            
+     set x,1             [5]            ; On rising edge, and wait half bit                                            
 .wrap_target
 word:
      in pins, 1          [7]
@@ -28,11 +28,11 @@ word:
 bit:     
      in pins, 1          [7]
      jmp y-- bit         [7]
-     in pins, 1
+     in pins, 1                         ; Short delay on last bit so we can do edge detect
      jmp x-- end         
-     jmp high
+     jmp high                           ; After two words, go back to the high test
 end:
-     nop                [13]
+     nop                [13]            ; Long delay if we are just doing another word
 .wrap
 
 
