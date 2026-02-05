@@ -105,6 +105,24 @@ using namespace DAES67;
 #define     REG_VOLTAGE     VREG_VOLTAGE_1_15                               // Voltage regulator setting       
 #define     CLK_SYS         (288000000L)                                    // The system clock frequency
 
+
+#define     FILTER_INPUT     1                // The I2S input to take (0=L  1=R)
+//#define     FILTER_0         SGR_High_LR4   
+//#define     FILTER_1         SGR_Mid_LR4    
+//#define     FILTER_0         Passthrough    
+//#define     FILTER_1         SGR_Low_LR4    
+//#define    FILTER_0         SGR_High_Glenn  
+//#define    FILTER_1         SGR_Mid_Glenn   
+//#define FILTER_0         Passthrough
+//#define FILTER_1         SGR_Low_Glenn
+//#define FILTER_0         SGR_High_Pass
+//#define FILTER_1         SGR_Mid_Pass
+//#define FILTER_0         Passthrough
+//#define FILTER_1         SGR_Low_Pass
+#define FILTER_0         Passthrough
+#define FILTER_1         Passthrough
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // FUNCTION PROTOTYPES NOT WORTH HEADERS
 
