@@ -19,7 +19,8 @@ low:
     jmp pin start                       ; Wait for LRCLK to become high
     jmp low
 start:
-     set x,1             [5]            ; On rising edge, and wait half bit                                            
+    irq set 4                          ; Signal the other machines (stays set until cleared)
+    set x,1             [4]            ; On rising edge, and wait half bit                                            
 .wrap_target
 word:
      in pins, 1          [7]
@@ -97,25 +98,25 @@ bit1:
 
 .side_set 2
 
-public entry_point:
-    jmp pin start               side 0b10   ; Wait for LRCLK to become high
-    jmp entry_point             side 0b00   ;
 .wrap_target
-start:
-    jmp pin start               side 0b10   ; Wait for LRCLK to become low
-    out pins, 1          [2]    side 0b00   ; Last bit of previous word
-    pull noblock         [3]    side 0b00   ; 
+public entry_point:
+    wait irq 4                  side 0b11   ; Use the I2S in signal to stay in sync
+    out pins, 1                 side 0b00   ; Last bit of previous word
+    pull noblock                side 0b00   ; 
     set y, 30            [7]    side 0b01   ; 
 bit0:
     out pins, 1          [7]    side 0b00   ; Push out bits
     jmp y-- bit0         [7]    side 0b01   ;  
     out pins, 1          [3]    side 0b10   ; Push last bit         
     pull noblock         [3]    side 0b10
-    set y, 30            [7]    side 0b11    
+    set y, 29            [7]    side 0b11    
 bit1:
     out pins, 1          [7]    side 0b10   ; Push out bits
     jmp y-- bit1         [7]    side 0b11   ;  
+    out pins, 1          [7]    side 0b10   ; 
 .wrap
+
+
 
 
 
@@ -143,6 +144,7 @@ static inline void i2s_in_init(PIO pio, uint8_t sm, int offset, int lrclk, int d
     sm_config_set_in_pins  (&sm_config, din);
     sm_config_set_jmp_pin  (&sm_config, lrclk);
     sm_config_set_in_shift (&sm_config, false, false, 0);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
     pio_sm_init(pio, sm, offset + i2s_in_offset_entry_point, &sm_config);
     uint32_t pin_mask = (1 << din) | (1 << lrclk);                                       // Everything synced off LR clock normal rate
     pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);
@@ -198,6 +200,7 @@ static inline void i2s_follower_out_init(PIO pio, uint8_t sm, int offset, int lr
     sm_config_set_out_pins (&sm_config, dout, 1);
     sm_config_set_sideset_pins (&sm_config, bclk_out);
     sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
     pio_sm_init(pio, sm, offset + i2s_follower_out_offset_entry_point, &sm_config);
     uint32_t pin_mask = (1 << lrclk_in);   
     pio_sm_set_pindirs_with_mask(pio, sm, 0, pin_mask);

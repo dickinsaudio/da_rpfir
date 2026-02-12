@@ -121,6 +121,11 @@ void i2s_setup()
 
     offset = pio_add_program (I2S_PIO  , &i2s_in_program);  
     i2s_in_init(I2S_PIO, I2S_IN_SM, offset, I2S_IN_LRCLK_PIN, I2S_IN_SD_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);
+
+    
+    hw_set_bits(&I2S_PIO->input_sync_bypass, 1u << I2S_IN_LRCLK_PIN);           // Bypass sync for SPI pins to reduce latency
+    hw_set_bits(&I2S_PIO->input_sync_bypass, 1u << I2S_IN_BCLK_PIN);      
+    hw_set_bits(&I2S_PIO->input_sync_bypass, 1u << I2S_IN_SD_PIN);        
     
     // SETUP DMA FOR I2S OUTPUT
     //
@@ -221,7 +226,7 @@ void fir_load_coefficients(const float32_t *h, int length, int channel)
     for (int n=0; n<length; n+=I2S_BLOCK) 
     {
         memset(buf_tmp, 0, sizeof(buf_tmp));
-        for (int t=0; t<I2S_BLOCK && t<(length-n); t++) buf_tmp[t] = h[t+n];
+        for (int t=0; t<I2S_BLOCK && t<(length-n); t++) buf_tmp[t] = (0.9F * h[t+n]);
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_H[channel][n/I2S_BLOCK], 0);
     }
 }
@@ -282,7 +287,7 @@ void fir_compute(int32_t *x, int32_t *y)
             if (val> 0x7FFFFE00LL) val = 0x7FFFFE00LL;
             else if (val < -0x80000000LL) val = -0x80000000LL;
             
-            y[2*n + i] = buf_tmp[2*N_FFT - T_FFT + n] * (0x80000000LL);
+            y[2*n + i] = ((int32_t)(buf_tmp[2*N_FFT - T_FFT + n] * (float)(0x80000000LL) * 0.7071F)) & 0xFFFFFF00;    // Just to make I2S easier to find errors in
         }
     
 
@@ -334,10 +339,20 @@ void core_audio()
         {
 
             // TODO Any logging here
-            //printf("DMA Pointers I2S IN0: IN %p OUT %p\n", (void*)dma_hw->ch[i2s_in_dma1].read_addr, (void*)((char *)dma_hw->ch[i2s_in_dma1].write_addr-(char *)i2s_in));
+            void *x, *y, *x_prev=0, *y_prev=0;
+            while(1)
+            {
+                x=(void*)dma_hw->ch[i2s_in_dma1].write_addr;
+                y=(void*)dma_hw->ch[i2s_out_dma1].read_addr;
+                if (x == x_prev && y == y_prev) break;
+                x_prev = x;
+                y_prev = y;
+            } 
+
+            printf("DMA Pointers IN %p   OUT  %p    DIFF  %p\n", (int32_t)x - (int32_t)i2s_in, (int32_t)y - (int32_t)i2s_out, (int32_t)y - (int32_t)x + (int32_t)i2s_in - (int32_t)i2s_out);
             //printf("SM Program Counter I2S IN0: %04x\n", I2S_PIO->sm[I2S_IN_SM].addr);
 
-            
+            /*
             printf("Incoming data %08x %08x %08x %08x %08x %08x %08x %08x\n",
                 ((uint32_t*)i2s_in)[0], ((uint32_t*)i2s_in)[1], ((uint32_t*)i2s_in)[2], ((uint32_t*)i2s_in)[3],
                 ((uint32_t*)i2s_in)[4], ((uint32_t*)i2s_in)[5], ((uint32_t*)i2s_in)[6], ((uint32_t*)i2s_in)[7]
@@ -346,7 +361,7 @@ void core_audio()
                 ((uint32_t*)i2s_out)[0], ((uint32_t*)i2s_out)[1], ((uint32_t*)i2s_out)[2], ((uint32_t*)i2s_out)[3],
                 ((uint32_t*)i2s_out)[4], ((uint32_t*)i2s_out)[5], ((uint32_t*)i2s_out)[6], ((uint32_t*)i2s_out)[7]
             );
-            
+            */
             //printf("buf_X data %8.5f + j %8.5f\n", buf_X[0][0], buf_X[0][1]);
             
 
