@@ -226,7 +226,7 @@ void fir_load_coefficients(const float32_t *h, int length, int channel)
     for (int n=0; n<length; n+=I2S_BLOCK) 
     {
         memset(buf_tmp, 0, sizeof(buf_tmp));
-        for (int t=0; t<I2S_BLOCK && t<(length-n); t++) buf_tmp[t] = (0.9F * h[t+n]);
+        for (int t=0; t<I2S_BLOCK && t<(length-n); t++) buf_tmp[t] = h[t+n];
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_H[channel][n/I2S_BLOCK], 0);
     }
 }
@@ -287,7 +287,8 @@ void fir_compute(int32_t *x, int32_t *y)
             if (val> 0x7FFFFE00LL) val = 0x7FFFFE00LL;
             else if (val < -0x80000000LL) val = -0x80000000LL;
             
-            y[2*n + i] = ((int32_t)(buf_tmp[2*N_FFT - T_FFT + n] * (float)(0x80000000LL) * 0.7071F)) & 0xFFFFFF00;    // Just to make I2S easier to find errors in
+            // Scale down by 0.3dB and zero last two bits for I2S CRO reading
+            y[2*n + i] = ((int32_t)(buf_tmp[2*N_FFT - T_FFT + n] * (float)(0x80000000LL) * 0.9772F)) & 0xFFFFFFFC;  
         }
     
 

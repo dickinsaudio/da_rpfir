@@ -20,9 +20,17 @@ int main()
     gpio_set_dir(27, GPIO_OUT);
     gpio_put(27, 0);
 
-    gpio_init(8);                             // DAC disable
+    gpio_init(8);                             // Power up ASRC
     gpio_set_dir(8, GPIO_OUT);
     gpio_put(8,1);
+
+    gpio_init(22);                             // DEM 0
+    gpio_set_dir(22, GPIO_OUT);
+    gpio_put(22, 1);
+
+    gpio_init(23);                             // DEM 1
+    gpio_set_dir(23, GPIO_OUT);
+    gpio_put(23, 0);
 
 
     core_idle[0].configure("Core 0 Idle", 0, 100);
