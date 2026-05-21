@@ -1,36 +1,46 @@
 #include "da_rpfir.hpp"
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
+#include "pwm.h"
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
 
 Histogram core_idle[2];
 Histogram core_stall[2];
 
+#define VAMP_EN       24
+#define VSEN0         28
+#define VSEN1         29
+#define VA_PWM0       22
+#define VA_PWM1       23
+#define I2S_EN        26 
+#define DAC_EN        27
+
+#define PWM_MAX 1023
+#define PWM_FREQ_KHZ  100
+
+#define _0DB_PWM_VAL    ( PWM_MAX * 0.994 )  //eg 43V
+#define M_3DB_PWM_VAL   ( PWM_MAX * 0.756 )  //eg 30.4V
+#define M_6DB_PWM_VAL   ( PWM_MAX * 0.590 )  //eg 21.5V
+#define M_9DB_PWM_VAL   ( PWM_MAX * 0.474 )  //eg 15.2V
+
+
 int main()
 {
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
     for (int n=0; n<32; n++) gpio_set_pulls(n, false,false);    // No pullups or pulldowns
 
-    gpio_init(10);                             // PMIC on Amp disable
-    gpio_set_dir(10, GPIO_OUT);
-    gpio_put(26, 0);      
+    gpio_init(VAMP_EN);                             // PMIC on Amp disable
+    gpio_set_dir(VAMP_EN, GPIO_OUT);
+    gpio_put(I2S_EN, 0);      
 
-    gpio_init(27);                             // DAC disable
-    gpio_set_dir(27, GPIO_OUT);
-    gpio_put(27, 0);
+    gpio_init(DAC_EN);                             // DAC Off
+    gpio_set_dir(DAC_EN, GPIO_OUT);
+    gpio_put(DAC_EN, 0);
 
-    gpio_init(8);                             // Power up ASRC
-    gpio_set_dir(8, GPIO_OUT);
-    gpio_put(8,1);
-
-    gpio_init(22);                             // DEM 0
-    gpio_set_dir(22, GPIO_OUT);
-    gpio_put(22, 1);
-
-    gpio_init(23);                             // DEM 1
-    gpio_set_dir(23, GPIO_OUT);
-    gpio_put(23, 0);
+    gpio_init(I2S_EN);                             // Renderer Off 
+    gpio_set_dir(I2S_EN, GPIO_OUT);
+    gpio_put(I2S_EN, 0);
 
 
     core_idle[0].configure("Core 0 Idle", 0, 100);
@@ -73,9 +83,29 @@ int main()
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();
     Notice("STARTING WEB SERVER");
+   
+#if 1
+ 
+    gpio_init(VA_PWM0);
+    pwmInit( VA_PWM0, PWM_MAX, PWM_FREQ_KHZ, 0 );
 
-    gpio_put(10, 1);      
-    gpio_put(27, 1);
+    gpio_init(VA_PWM1); 
+    pwmInit( VA_PWM1, PWM_MAX, PWM_FREQ_KHZ, 0 );
+
+    setPemLvl(VA_PWM0, M_6DB_PWM_VAL);
+    setPemLvl(VA_PWM1, M_6DB_PWM_VAL);
+    sleep_ms(100); // Wait for rails to stabilize
+
+#endif
+
+    gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
+    sleep_ms(100);
+
+    gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
+    sleep_ms(100);
+  
+    gpio_put(VAMP_EN, 1);       // Turn on the amp power
+
     start_web();
     
     rom_reset_usb_boot(-1,0);       // Back to bootloader

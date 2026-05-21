@@ -48,11 +48,11 @@ static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RI
 #define     I2S_OUT_SD_PIN      5
 #else
 // The Amp board
-#define     I2S_IN_BCLK_PIN     2
-#define     I2S_IN_LRCLK_PIN    3
-#define     I2S_IN_SD_PIN       1
-#define     I2S_OUT_BCLK_PIN    28      // Just hide these for now
-#define     I2S_OUT_LRCLK_PIN   29
+#define     I2S_IN_BCLK_PIN     3
+#define     I2S_IN_LRCLK_PIN    1
+#define     I2S_IN_SD_PIN       2
+#define     I2S_OUT_BCLK_PIN    6      // Just hide these for now
+#define     I2S_OUT_LRCLK_PIN   7
 #define     I2S_OUT_SD_PIN      4
 #endif
 #endif

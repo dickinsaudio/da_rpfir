@@ -164,6 +164,7 @@ Target_sources(da_rpfir   PRIVATE
                             daes67_lite/histogram.cpp 
                             daes67_lite/log.cpp 
                             daes67_lite/http_server.cpp
+                            pwm.c
                             )
 
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)
