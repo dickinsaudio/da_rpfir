@@ -2,6 +2,9 @@
 
 clear all
 
+Fs = 96000;
+
+
 Slr = load('20260216_LOW.txt');
 Slr = Slr(:,2);
 
@@ -11,14 +14,34 @@ Smr = Smr(:,2);
 Shr = load('20260216_HI.txt');
 Shr = Shr(:,2);
 
-%%
-Sl = Slr(mod((-20:end-21)+length(Slr),length(Slr))+1);
-Sm = Smr(mod((-20:end-21)+length(Slr),length(Slr))+1);
-Sh = Shr(mod((-20:end-21)+length(Slr),length(Slr))+1);
-%Sl = Sl(1:length(Sl)/2);
-%Sm = Sm(1:length(Sm)/2);
-%Sh = Sh(1:length(Sh)/2);
+% Fix the wrapping errors with the SGR filers and room for resample
+Unwrap = 20;
 
+Sl = Slr(mod((-Unwrap:end-Unwrap-1)+length(Slr),length(Slr))+1);
+Sm = Smr(mod((-Unwrap:end-Unwrap-1)+length(Slr),length(Slr))+1);
+Sh = Shr(mod((-Unwrap:end-Unwrap-1)+length(Slr),length(Slr))+1);
+
+%[ b a ] = butter(2,0.45);
+%hrs = impz(b,a, 128);
+
+%Sl = upfirdn(Slw, hrs, Fs/96000, 1) / (Fs/96000);
+%Sm = upfirdn(Smw, hrs, Fs/96000, 1) / (Fs/96000);
+%Sh = upfirdn(Shw, hrs, Fs/96000, 1) / (Fs/96000);
+
+%Shmrs = resample(Shw, Fs, 96000,  128);
+
+% TODO  Need to revisit this for 192kHz
+%figure(1); clf;
+%plot(Sh/2); hold on; plot(Shmrs); plot(1:2:2*length(Shw),Shw);
+%figure(2); clf;
+%Spectra(Sh,Fs,.0001); hold on;
+%Spectra(Shw,96000,.0001);
+%Spectra(Shmrs,Fs,.0001);
+
+
+
+
+%%
 
 
 
@@ -26,16 +49,16 @@ Sh = Shr(mod((-20:end-21)+length(Slr),length(Slr))+1);
 F1 = 1350;
 O1 = 1;
 
-[b a] = butter(O1,F1/48000); 
+[b a] = butter(O1,F1/(Fs/2)); 
 h_1l  = impz(conv(b,b),conv(a,a),4096);
-[b a] = butter(O1,F1/48000,"high"); 
+[b a] = butter(O1,F1/(Fs/2),"high"); 
 h_1h  = -impz(conv(b,b),conv(a,a),4096);
 
 F2 = 4000;
 O2 = 2;
-[b a] = butter(O2,F2/48000); 
+[b a] = butter(O2,F2/(Fs/2)); 
 h_2l  = impz(conv(b,b),conv(a,a),4096);
-[b a] = butter(O2,F2/48000,"high"); 
+[b a] = butter(O2,F2/(Fs/2),"high"); 
 h_2h  = impz(conv(b,b),conv(a,a),4096);
 
 
@@ -47,7 +70,7 @@ hh =      conv(h_1h, h_2h); hh = hh(1:4096);
 
 f0 = 20;
 BW_oct = 1.5;
-Fs = 96000;
+
     
     w0 = 2*pi*f0/Fs;
     Q = 1/(2*sinh(log(2)/2 * BW_oct * w0/sin(w0)));
@@ -58,7 +81,7 @@ Fs = 96000;
     b = [b0 b1 b2]/a0;
     a = [1  a1/a0  a2/a0];
 
-    %[b a] = butter(1,[10 50]/48000);
+    %[b a] = butter(1,[10 50]/(Fs/2));
 hl = hl + 2*impz(b,a,4096);
 
 
@@ -67,7 +90,7 @@ Lm = hm;
 Lh = hh;
 
 
-[b a] = butter(2,5/48000,'high');
+[b a] = butter(2,5/(Fs/2),'high');
 Slt = filter(b,a,filter(b,a,Sl));
 Ll  = filter(b,a,Ll);
 
@@ -86,8 +109,8 @@ DC = -2*sum(Ll)/length(Ll)*tukeywin(length(Ll),1);
 Ll = Ll + DC;
 
 figure(1); clf;
-Spectra([[Ll Lm Lh Ll+Lm+Lh]; zeros(100000,4)],96000,'linewidth',2);
-axis([1 48000 -40 15]);
+Spectra([[Ll Lm Lh Ll+Lm+Lh]; zeros(100000,4)],Fs,'linewidth',2);
+axis([1 (Fs/2) -40 15]);
 grid on;
 legend('Low','Mid','High','Phase Sum');
 
@@ -99,8 +122,8 @@ Gm = 10^(-3.5/20);
 Gh = 10^(-8/20);
 
 figure(2); clf;
-Spectra([[Sl/Gl Sm/Gm Sh/Gh Sl/Gl+Sm/Gm+Sh/Gh -Sl/Gl+Sm/Gm+Sh/Gh Sl/Gl+[zeros(34,1); Sm(1:end-34)/Gm+Sh(1:end-34)/Gh]]; zeros(100000,6)],96000,'linewidth',2);
-axis([1 48000 -40 15]);
+Spectra([[Sl/Gl Sm/Gm Sh/Gh Sl/Gl+Sm/Gm+Sh/Gh -Sl/Gl+Sm/Gm+Sh/Gh Sl/Gl+[zeros(34,1); Sm(1:end-34)/Gm+Sh(1:end-34)/Gh]]; zeros(100000,6)],Fs,'linewidth',2);
+axis([1 (Fs/2) -40 15]);
 grid on;
 legend('Low','Mid','High','Phase Sum','Flip Low','Delay');
 
@@ -127,17 +150,17 @@ Lh = Scale*Lh;
 
 
 figure(4); clf;
-Spectra([Sl; zeros(100000,1)],96000,'r','linewidth',3); hold on;
-Spectra([Ll; zeros(100000,1)],96000,'r--','linewidth',2); hold on;
-Spectra([Slt; zeros(100000,1)],96000,'k:','linewidth',2); hold on;
-Spectra([Sm; zeros(100000,1)],96000,'b','linewidth',3); hold on;
-Spectra([Lm; zeros(100000,1)],96000,'b--','linewidth',2); hold on;
-Spectra([Smt; zeros(100000,1)],96000,'k:','linewidth',2); hold on;
-Spectra([Sh; zeros(100000,1)],96000,'m','linewidth',3); hold on;
-Spectra([Lh; zeros(100000,1)],96000,'m--','linewidth',2); hold on;
-Spectra([Sht; zeros(100000,1)],96000,'k:','linewidth',2); hold on;
+Spectra([Sl; zeros(100000,1)],Fs,'r','linewidth',3); hold on;
+Spectra([Ll; zeros(100000,1)],Fs,'r--','linewidth',2); hold on;
+Spectra([Slt; zeros(100000,1)],Fs,'k:','linewidth',2); hold on;
+Spectra([Sm; zeros(100000,1)],Fs,'b','linewidth',3); hold on;
+Spectra([Lm; zeros(100000,1)],Fs,'b--','linewidth',2); hold on;
+Spectra([Smt; zeros(100000,1)],Fs,'k:','linewidth',2); hold on;
+Spectra([Sh; zeros(100000,1)],Fs,'m','linewidth',3); hold on;
+Spectra([Lh; zeros(100000,1)],Fs,'m--','linewidth',2); hold on;
+Spectra([Sht; zeros(100000,1)],Fs,'k:','linewidth',2); hold on;
 legend('Analog','Hand Tuned LR4','RP Simulate Analog');
-axis([1 48000 -40 15]);
+axis([1 (Fs/2) -40 15]);
 grid on;
 
 
@@ -154,18 +177,18 @@ Filters = { { "SGR_Low_LR4", Ll },
 
 
 
-[bl al] = butter(4,35000/48000);
-[bh ah] = butter(2,20/48000,'high');
+[bl al] = butter(4,35000/(Fs/2));
+[bh ah] = butter(2,20/(Fs/2),'high');
 figure(6); clf;
 for (f=1:length(Filters))
     Filters{f}{2} = filter(bl,al,Filters{f}{2});
     Filters{f}{2} = filter(bh,ah,Filters{f}{2});
-    Filters{f}{2}(abs(Filters{f}{2})<.0000001)=0;       % Avoid the +- 0 for git diff on the Filters.h
-    Spectra([ Filters{f}{2}; zeros(100000,1)], 96000); hold on;
-    Spectra([ round(Filters{f}{2},5); zeros(100000,1)], 96000); hold on;
+    Filters{f}{2}(abs(Filters{f}{2})<.0000000499)=0;       % Avoid the +- 0 for git diff on the Filters.h
+    Spectra([ Filters{f}{2}; zeros(100000,1)], Fs); hold on;
+    Spectra([ round(Filters{f}{2},5); zeros(100000,1)], Fs); hold on;
     sum(round(Filters{f}{2},8)~=0)
 end;
-axis([1 48000 -40 10]);
+axis([1 (Fs/2) -40 10]);
 grid on;
 
 
