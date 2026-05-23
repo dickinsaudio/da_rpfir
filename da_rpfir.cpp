@@ -23,7 +23,9 @@ Histogram core_stall[2];
 #define M_3DB_PWM_VAL   ( PWM_MAX * 0.756 )  //eg 30.4V
 #define M_6DB_PWM_VAL   ( PWM_MAX * 0.590 )  //eg 21.5V
 #define M_9DB_PWM_VAL   ( PWM_MAX * 0.474 )  //eg 15.2V
-
+#define M_12DB_PWM_VAL  ( PWM_MAX * 0.391 )  //eg 10.75
+#define M_15DB_PWM_VAL  ( PWM_MAX * 0.332 )  //eg 7.6V
+#define M_18DB_PWM_VAL  ( PWM_MAX * 0.291 )  //eg 5.375V
 
 int main()
 {
@@ -92,11 +94,21 @@ int main()
     gpio_init(VA_PWM1); 
     pwmInit( VA_PWM1, PWM_MAX, PWM_FREQ_KHZ, 0 );
 
-    setPemLvl(VA_PWM0, M_6DB_PWM_VAL);
-    setPemLvl(VA_PWM1, M_6DB_PWM_VAL);
+    setPemLvl(VA_PWM0, M_12DB_PWM_VAL);
+    setPemLvl(VA_PWM1, M_12DB_PWM_VAL);
     sleep_ms(100); // Wait for rails to stabilize
 
+#else
+
+    gpio_init(VA_PWM0);
+    gpio_set_dir(VA_PWM0, GPIO_OUT);
+    gpio_put(VA_PWM0, 1);
+    gpio_init(VA_PWM1);
+    gpio_set_dir(VA_PWM1, GPIO_OUT);
+    gpio_put(VA_PWM1, 1);
+    sleep_ms(100); // Wait for rails to stabilize
 #endif
+
 
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
