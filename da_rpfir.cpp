@@ -33,10 +33,14 @@ Histogram core_stall[2];
 
 void setup_ct7302()
 {
+
+//  i2c_scan(0x91);
+
     CT73xxInit(0x10);
 
     CT73xxSetRegisterValue(0x05, 0x09);          // Set SRC to 192kHz
 
+#if 0
     printf("CT7302 registers:\n");
     for (int addr = 0; addr <= 0xFF; addr++)
     { 
@@ -44,6 +48,8 @@ void setup_ct7302()
         printf("  0x%02X", CT73xxGetRegisterValue((BYTE)addr));
         if (addr % 16 == 15) printf("\n");
     }
+#endif
+
 }
 
 
@@ -52,24 +58,23 @@ int main()
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
     for (int n=0; n<32; n++) gpio_set_pulls(n, false,false);    // No pullups or pulldowns
 
-    gpio_init(VAMP_EN);                             // PMIC on Amp disable
-    gpio_set_dir(VAMP_EN, GPIO_OUT);
-    gpio_put(I2S_EN, 0);      
-
     gpio_init(DAC_EN);                             // DAC Off
     gpio_set_dir(DAC_EN, GPIO_OUT);
     gpio_put(DAC_EN, 0);
-
-    gpio_init(I2S_EN);                             // Renderer Off 
-    gpio_set_dir(I2S_EN, GPIO_OUT);
-    gpio_put(I2S_EN, 0);
 
     gpio_init(I2S_OUT_SD_PIN);                     // I2S SD pin - set to output and low to prevent noise during boot
     gpio_set_dir(I2S_OUT_SD_PIN, GPIO_OUT);
     gpio_put(I2S_OUT_SD_PIN, 0);
     
-    i2c_write(0x10, 0x10, 0xC7);                    // Force the output of the ASRC off until we need it
+    gpio_init(I2S_EN);                             // Renderer Off 
+    gpio_set_dir(I2S_EN, GPIO_OUT);
+    gpio_put(I2S_EN, 0);
 
+    gpio_init(VAMP_EN);                             // PMIC on Amp disable
+    gpio_set_dir(VAMP_EN, GPIO_OUT);
+    gpio_put(VAMP_EN, 0);      
+
+    i2c_write(0x10, 0x10, 0xC7);                    // Force the output of the ASRC off until we need it
 
     core_idle[0].configure("Core 0 Idle", 0, 100);
     core_idle[1].configure("Core 1 Idle", 0, 100);
@@ -106,12 +111,7 @@ int main()
     char buffer[2048] = {};
     flash_state(buffer, sizeof(buffer));
     Notice("%s",buffer);
-
-    Notice("*********************************************");
-    Notice("STARTING AUDIO SERVER IN CORE 1");
-    start_audio();
-    Notice("STARTING WEB SERVER");
-   
+  
 #if 1
  
     gpio_init(VA_PWM0);
@@ -135,21 +135,23 @@ int main()
     sleep_ms(100); // Wait for rails to stabilize
 #endif
 
-
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
 
-
-    sleep_ms(5000);
-    i2c_scan(0x91);
-    
     setup_ct7302();            // Start the CT7302 and set it to max volume (0dB attenuation)
 
     gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
     sleep_ms(100);
   
     gpio_put(VAMP_EN, 1);       // Turn on the amp power
+    sleep_ms(100);
 
+    Notice("*********************************************");
+    Notice("STARTING AUDIO SERVER IN CORE 1");
+    start_audio();
+
+    Notice("*********************************************");
+    Notice("STARTING WEB SERVER");
     start_web();
     
     rom_reset_usb_boot(-1,0);       // Back to bootloader

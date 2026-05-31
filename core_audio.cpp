@@ -185,7 +185,7 @@ void i2s_setup()
                                                     
 float32_t   buf_x[2*N_FFT];                   
 float32_t   buf_X[M_FIR][2*N_FFT];
-float32_t   buf_H[CHANS][M_FIR][2*N_FFT];~
+float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
 float32_t   buf_tmp[2*N_FFT];
 arm_rfft_fast_instance_f32 FFT;
