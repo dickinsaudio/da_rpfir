@@ -13,7 +13,7 @@
 // The SPI routine will use the state machine address registers to determine how much of the buffer to use or fill.
 //
 
-#define     CLK_I2S         (96000)                                         
+#define     CLK_I2S         (192000)                                         
 #define     CLK_PIO         (CLK_I2S*64*16)                                 // PIO execution rate (16 cycles each bit of I2S)
 #define     CLK_PIO_DIV_N   ((int)(CLK_SYS/CLK_PIO))                        // PIO clock divider integer part
 #define     CLK_PIO_DIV_F   ((int)(((CLK_SYS%CLK_PIO)*256LL+128)/CLK_PIO))  // PIO clock divider fractional part
@@ -29,8 +29,8 @@
 #include <cassert>
 static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RING must be log2(I2S_BUFFER / I2S_BLOCK * 4)");
 
-int32_t     i2s_in [I2S_CHANS*I2S_BUFFER];
-int32_t     i2s_out[I2S_CHANS*I2S_BUFFER];
+int32_t     i2s_in [I2S_CHANS*I2S_BUFFER] = {};
+int32_t     i2s_out[I2S_CHANS*I2S_BUFFER] = {};
 
 int32_t  audio_in_peaks[2];              // The output audio meters
 int32_t  audio_out_peaks[2];             // The output audio meters
@@ -180,12 +180,12 @@ void i2s_setup()
 
 #define T_FFT       I2S_BLOCK       // The stride of time samples between each FFT
 #define N_FFT       T_FFT           // The size of the complex FFT we will be using
-#define M_FIR       4               // The number of blocks to use for filtering
+#define M_FIR       3               // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
 float32_t   buf_x[2*N_FFT];                   
 float32_t   buf_X[M_FIR][2*N_FFT];
-float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
+float32_t   buf_H[CHANS][M_FIR][2*N_FFT];~
 float32_t   buf_Y[2*N_FFT];
 float32_t   buf_tmp[2*N_FFT];
 arm_rfft_fast_instance_f32 FFT;
@@ -222,6 +222,8 @@ void fir_setup()
     arm_status status = arm_rfft_fast_init_4096_f32(&FFT);
     #elif N_FFT == 1024
     arm_status status = arm_rfft_fast_init_2048_f32(&FFT);
+    #elif N_FFT == 4096
+    arm_status status = arm_rfft_fast_init_f32 (&FFT, 8192);
     #else
     #error "FFT SIZE NOT SUPPORTED"
     #endif

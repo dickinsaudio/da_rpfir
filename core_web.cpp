@@ -430,9 +430,6 @@ void start_web(void)
     char ip[18];
     snprintf(ip,18," %d.%d.%d.%d",flash->net_info.ip[0],flash->net_info.ip[1],flash->net_info.ip[2],flash->net_info.ip[3]);
 
-    printf(" Time Latency Buf SmpRate  Offset Under\n");
-    printf("  (s)    (ns) pos    (Hz)   (ppb) runs\n");
-
     int64_t next_log   = now_ns();
     int64_t next_peak  = next_log;
     int64_t next_web   = next_log;
