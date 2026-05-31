@@ -29,34 +29,6 @@
 #include <cassert>
 static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RING must be log2(I2S_BUFFER / I2S_BLOCK * 4)");
 
-#if 0
-// The EVK board
-#define     I2S_IN_BCLK_PIN     6
-#define     I2S_IN_LRCLK_PIN    7
-#define     I2S_IN_SD_PIN       5
-#define     I2S_OUT_BCLK_PIN    2
-#define     I2S_OUT_LRCLK_PIN   3
-#define     I2S_OUT_SD_PIN      1
-#else
-#if 0
-// The Interface board
-#define     I2S_IN_BCLK_PIN     2
-#define     I2S_IN_LRCLK_PIN    3
-#define     I2S_IN_SD_PIN       1
-#define     I2S_OUT_BCLK_PIN    6
-#define     I2S_OUT_LRCLK_PIN   7
-#define     I2S_OUT_SD_PIN      5
-#else
-// The Amp board
-#define     I2S_IN_BCLK_PIN     3
-#define     I2S_IN_LRCLK_PIN    1
-#define     I2S_IN_SD_PIN       2
-#define     I2S_OUT_BCLK_PIN    6      // Just hide these for now
-#define     I2S_OUT_LRCLK_PIN   7
-#define     I2S_OUT_SD_PIN      4
-#endif
-#endif
-
 int32_t     i2s_in [I2S_CHANS*I2S_BUFFER];
 int32_t     i2s_out[I2S_CHANS*I2S_BUFFER];
 
@@ -350,7 +322,7 @@ void core_audio()
                 y_prev = y;
             } 
 
-            printf("DMA Pointers IN %p   OUT  %p    DIFF  %p\n", (int32_t)x - (int32_t)i2s_in, (int32_t)y - (int32_t)i2s_out, (int32_t)y - (int32_t)x + (int32_t)i2s_in - (int32_t)i2s_out);
+            //printf("DMA Pointers IN %p   OUT  %p    DIFF  %p\n", (int32_t)x - (int32_t)i2s_in, (int32_t)y - (int32_t)i2s_out, (int32_t)y - (int32_t)x + (int32_t)i2s_in - (int32_t)i2s_out);
             //printf("SM Program Counter I2S IN0: %04x\n", I2S_PIO->sm[I2S_IN_SM].addr);
 
             /*

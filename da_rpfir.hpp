@@ -140,3 +140,30 @@ extern Histogram i2s_dma_execution;
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];
 
+#if 0
+// The EVK board
+#define     I2S_IN_BCLK_PIN     6
+#define     I2S_IN_LRCLK_PIN    7
+#define     I2S_IN_SD_PIN       5
+#define     I2S_OUT_BCLK_PIN    2
+#define     I2S_OUT_LRCLK_PIN   3
+#define     I2S_OUT_SD_PIN      1
+#else
+#if 0
+// The Interface board
+#define     I2S_IN_BCLK_PIN     2
+#define     I2S_IN_LRCLK_PIN    3
+#define     I2S_IN_SD_PIN       1
+#define     I2S_OUT_BCLK_PIN    6
+#define     I2S_OUT_LRCLK_PIN   7
+#define     I2S_OUT_SD_PIN      5
+#else
+// The Amp board
+#define     I2S_IN_BCLK_PIN     3
+#define     I2S_IN_LRCLK_PIN    1
+#define     I2S_IN_SD_PIN       2
+#define     I2S_OUT_BCLK_PIN    6      // Just hide these for now
+#define     I2S_OUT_LRCLK_PIN   7
+#define     I2S_OUT_SD_PIN      4
+#endif
+#endif

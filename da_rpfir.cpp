@@ -2,6 +2,9 @@
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
 #include "pwm.h"
+#include "CT7302.h"
+#include "peripherals.hpp"
+
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
 
@@ -27,6 +30,23 @@ Histogram core_stall[2];
 #define M_15DB_PWM_VAL  ( PWM_MAX * 0.332 )  //eg 7.6V
 #define M_18DB_PWM_VAL  ( PWM_MAX * 0.291 )  //eg 5.375V
 
+
+void setup_ct7302()
+{
+    CT73xxInit(0x10);
+
+    CT73xxSetRegisterValue(0x05, 0x09);          // Set SRC to 192kHz
+
+    printf("CT7302 registers:\n");
+    for (int addr = 0; addr <= 0xFF; addr++)
+    { 
+        if (addr % 16 == 0) printf("%02X: ", addr);
+        printf("  0x%02X", CT73xxGetRegisterValue((BYTE)addr));
+        if (addr % 16 == 15) printf("\n");
+    }
+}
+
+
 int main()
 {
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
@@ -43,6 +63,12 @@ int main()
     gpio_init(I2S_EN);                             // Renderer Off 
     gpio_set_dir(I2S_EN, GPIO_OUT);
     gpio_put(I2S_EN, 0);
+
+    gpio_init(I2S_OUT_SD_PIN);                     // I2S SD pin - set to output and low to prevent noise during boot
+    gpio_set_dir(I2S_OUT_SD_PIN, GPIO_OUT);
+    gpio_put(I2S_OUT_SD_PIN, 0);
+    
+    i2c_write(0x10, 0x10, 0xC7);                    // Force the output of the ASRC off until we need it
 
 
     core_idle[0].configure("Core 0 Idle", 0, 100);
@@ -112,6 +138,12 @@ int main()
 
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
+
+
+    sleep_ms(5000);
+    i2c_scan(0x91);
+    
+    setup_ct7302();            // Start the CT7302 and set it to max volume (0dB attenuation)
 
     gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
     sleep_ms(100);

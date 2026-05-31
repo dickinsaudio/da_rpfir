@@ -2,9 +2,16 @@
 #ifndef CT73xx_H_
 #define CT73xx_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+	
+
 typedef unsigned long DWORD;
 typedef unsigned int  WORD;
 typedef unsigned char BYTE;
+typedef unsigned char U8;
+
 #define ENABLE     1
 #define DISABLE    0
 
@@ -53,4 +60,10 @@ BYTE CT73xxGetInputFormat(void);
 void CT73xxSetRegisterValue(BYTE addr, BYTE value);
 void CT73xxSetRegisterValueMask(BYTE addr, BYTE value, BYTE mask);
 BYTE CT73xxGetRegisterValue(BYTE addr);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif	//CT73xx_H_
+

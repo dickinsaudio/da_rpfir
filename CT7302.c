@@ -1,6 +1,30 @@
-#include "gpio.h"
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Basic C libraries
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <inttypes.h>
+#include <stdint.h>
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// The RP2040 SDK
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "pico/stdlib.h"
+#include "hardware/clocks.h"
+#include "hardware/i2c.h"
+#include "hardware/sync.h"
+#pragma GCC diagnostic pop
+
+#include "peripherals.hpp"
+
+
 #include "CT7302.h"
 BYTE _slave_addr;
+
+#define delay_ms(ms) sleep_ms(ms)
+
 
 void CT73xxInit(BYTE slave_addr)
 {
@@ -16,7 +40,7 @@ void CT73xxInit(BYTE slave_addr)
 
 	time_count=0;
 	temp_value = CT73xxGetRegisterValue(0x00);
-	while(temp_value==0 && time_count++<100);
+	while(temp_value==0 && time_count++<100)
 	{
 		delay_ms(1);
 		temp_value = CT73xxGetRegisterValue(0x00);
@@ -59,10 +83,7 @@ void CT73xxInit(BYTE slave_addr)
 
 void CT73xxSetRegisterValue(BYTE addr, BYTE value)
 {
-	BYTE temp[2];
-	temp[0]=addr;
-	temp[1]=value;
-    I2cWriteBytes(_slave_addr, 2, temp);
+	i2c_write(_slave_addr, addr, value);
 } 
 
 void CT73xxSetRegisterValueMask(BYTE addr, BYTE value, BYTE mask)
@@ -74,8 +95,7 @@ void CT73xxSetRegisterValueMask(BYTE addr, BYTE value, BYTE mask)
 
 BYTE CT73xxGetRegisterValue(BYTE addr)
 {
-	I2cWriteByte(_slave_addr, addr);
-    return I2cReadByte(_slave_addr);
+	return i2c_read(_slave_addr, addr);
 }
 
 // Set I2C Slave Addr. 
