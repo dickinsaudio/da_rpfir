@@ -68,8 +68,7 @@ __not_in_flash() void i2s_dma_handler(void)
     }
     
     //memcpy(out_ptr, in_ptr, I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
-    if (FILTER_INPUT==0)        fir_compute(in_ptr, out_ptr);
-    else                        fir_compute(in_ptr+1, out_ptr);
+    fir_compute(in_ptr, out_ptr);
 
     p = out_ptr;
     for (int n = 0; n < I2S_BLOCK; n++) 
@@ -183,8 +182,8 @@ void i2s_setup()
 #define M_FIR       3               // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
-float32_t   buf_x[2*N_FFT];                   
-float32_t   buf_X[M_FIR][2*N_FFT];
+float32_t   buf_x[CHANS][2*N_FFT];                   
+float32_t   buf_X[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
 float32_t   buf_tmp[2*N_FFT];
@@ -213,7 +212,8 @@ void fir_setup()
     memset(i2s_out, 0, sizeof(i2s_out));
     memset(audio_in_peaks, 0, sizeof(audio_in_peaks));
     memset(audio_out_peaks, 0, sizeof(audio_out_peaks));    
-    buf_x[T_FFT] = 1.0F;
+    buf_x[0][T_FFT] = 1.0F;
+    buf_x[1][T_FFT] = 1.0F;
 
     for (int n=0; n<N_FFT; n++) buf_H[0][0][2*n] = 0.5F; 
     //buf_H[0][0][1] = 0.5F;
@@ -236,21 +236,22 @@ void fir_setup()
 
 void fir_compute(int32_t *x, int32_t *y)
 {
-    memmove(buf_x, buf_x+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
-
-    for (int n=0; n<T_FFT; n++) buf_x[2*N_FFT - T_FFT + n] = x[2*n]*(1.0F/0x80000000);      // Only taking left channel
-    memmove(buf_tmp, buf_x, 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
-
     static int m=0;
-    arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[m], 0);
     for (int i=0; i<CHANS; i++)
     {   
-        memset(buf_Y, 0, sizeof(buf_Y));
+        memmove(buf_x[i], buf_x[i]+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
+
+        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i]*(1.0F/0x80000000);
+        memmove(buf_tmp, buf_x[i], 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
+
+        arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[i][m], 0);
+
+            memset(buf_Y, 0, sizeof(buf_Y));
         for (int n=0; n<M_FIR; n++)
         {
-            arm_cmplx_mult_cmplx_f32(buf_X[(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, N_FFT);
-            buf_tmp[0] = buf_X[(m-n+M_FIR)%M_FIR][0] * buf_H[i][n][0];    // DC component
-            buf_tmp[1] = buf_X[(m-n+M_FIR)%M_FIR][1] * buf_H[i][n][1];
+            arm_cmplx_mult_cmplx_f32(buf_X[i][(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, N_FFT);
+            buf_tmp[0] = buf_X[i][(m-n+M_FIR)%M_FIR][0] * buf_H[i][n][0];    // DC component
+            buf_tmp[1] = buf_X[i][(m-n+M_FIR)%M_FIR][1] * buf_H[i][n][1];
             arm_add_f32(buf_Y, buf_tmp, buf_Y, 2*N_FFT);
         }
         memset(buf_tmp, 0, sizeof(buf_tmp));

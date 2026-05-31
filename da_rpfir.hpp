@@ -106,7 +106,6 @@ using namespace DAES67;
 #define     CLK_SYS         (288000000L)                                    // The system clock frequency
 
 
-#define     FILTER_INPUT     0               // The I2S input to take (0=L  1=R)
 //#define     FILTER_0         SGR_High_SGR
 //#define     FILTER_1         SGR_Mid_SGR
 //#define     FILTER_0         Passthrough    
