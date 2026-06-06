@@ -130,26 +130,26 @@
 #define RENDERER_BPS_24             1
 #define RENDERER_BPS_32             2
 
-// IF0 (0x50): interrupt flags
-#define RENDERER_IF0_VOL            (1 << 0)    // volume changed
-#define RENDERER_IF0_ET             (1 << 1)    // elapsed time changed
-#define RENDERER_IF0_TD             (1 << 2)    // track duration changed
-#define RENDERER_IF0_PS             (1 << 3)    // player status changed
-#define RENDERER_IF0_ARN            (1 << 4)    // artist name changed
-#define RENDERER_IF0_ALN            (1 << 5)    // album name changed
-#define RENDERER_IF0_TRN            (1 << 6)    // track name changed
-#define RENDERER_IF0_COV            (1 << 7)    // cover changed
+// IF0 (0x50): interrupt flags — bits 7:0 of the 32-bit interrupt word
+#define RENDERER_IF0_VOL            (1u <<  0)  // volume changed
+#define RENDERER_IF0_ET             (1u <<  1)  // elapsed time changed
+#define RENDERER_IF0_TD             (1u <<  2)  // track duration changed
+#define RENDERER_IF0_PS             (1u <<  3)  // player status changed
+#define RENDERER_IF0_ARN            (1u <<  4)  // artist name changed
+#define RENDERER_IF0_ALN            (1u <<  5)  // album name changed
+#define RENDERER_IF0_TRN            (1u <<  6)  // track name changed
+#define RENDERER_IF0_COV            (1u <<  7)  // cover changed
 
-// IF1 (0x51): interrupt flags
-#define RENDERER_IF1_TRF            (1 << 0)    // track format changed
-#define RENDERER_IF1_IP             (1 << 1)    // IP address changed
-#define RENDERER_IF1_ELS            (1 << 2)    // ethernet link status changed
-#define RENDERER_IF1_SR             (1 << 3)    // sample rate changed
-#define RENDERER_IF1_BPS            (1 << 4)    // bits per sample changed
-#define RENDERER_IF1_MAC            (1 << 5)    // MAC address changed
+// IF1 (0x51): interrupt flags — bits 15:8 of the 32-bit interrupt word
+#define RENDERER_IF1_TRF            (1u <<  8)  // track format changed
+#define RENDERER_IF1_IP             (1u <<  9)  // IP address changed
+#define RENDERER_IF1_ELS            (1u << 10)  // ethernet link status changed
+#define RENDERER_IF1_SR             (1u << 11)  // sample rate changed
+#define RENDERER_IF1_BPS            (1u << 12)  // bits per sample changed
+#define RENDERER_IF1_MAC            (1u << 13)  // MAC address changed
 
-// IF2 (0x52): interrupt flags
-#define RENDERER_IF2_OFMT           (1 << 0)    // output format changed
+// IF2 (0x52): interrupt flags — bits 23:16 of the 32-bit interrupt word
+#define RENDERER_IF2_OFMT           (1u << 16)  // output format changed
 
 //---------------------------------------------------------------------------
 // API
@@ -170,9 +170,10 @@ uint8_t renderer_poll_volume(void);
 // Returns true when the INT pin is asserted (active-low) by the MR-MOD.
 bool    renderer_int_asserted(void);
 
-// Read all interrupt flag registers and return IF0.
-// Test against RENDERER_IF0_* bits to identify the source.
-uint8_t renderer_read_interrupts(void);
+// Read all interrupt flag registers and return them packed into a uint32_t
+// (IF0 → bits 7:0, IF1 → bits 15:8, IF2 → bits 23:16).
+// Test against RENDERER_IF0_*/IF1_*/IF2_* bits to identify the source.
+uint32_t renderer_read_interrupts(void);
 
 // Write 0 to all interrupt flag registers to clear them and deassert INT.
 void    renderer_clear_interrupts(void);

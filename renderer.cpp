@@ -48,7 +48,7 @@
 //---------------------------------------------------------------------------
 
 #define RETRY_MAX   16          // retries before giving up on a single word
-#define CS_GAP_US   8           // t(SSD) min is 7µs; add 1µs margin
+#define CS_GAP_US   50           // t(SSD) min is 7µs; add 1µs margin
 
 static inline void cs_select()   { gpio_put(RENDERER_PIN_CS, 0); }
 static inline void cs_deselect() { gpio_put(RENDERER_PIN_CS, 1); }
@@ -146,15 +146,15 @@ uint8_t renderer_poll_volume(void)
     return vol;
 }
 
-// Read all three interrupt flag registers and return IF0.
-// Test against RENDERER_IF0_* bits to identify the source.
-uint8_t renderer_read_interrupts(void)
+// Read all three interrupt flag registers and return them packed into a uint32_t
+// (IF0 → bits 7:0, IF1 → bits 15:8, IF2 → bits 23:16).
+uint32_t renderer_read_interrupts(void)
 {
     uint8_t if0 = 0, if1 = 0, if2 = 0;
     renderer_read_reg(RENDERER_REG_IF0, &if0);
     renderer_read_reg(RENDERER_REG_IF1, &if1);
     renderer_read_reg(RENDERER_REG_IF2, &if2);
-    return if0;
+    return ((uint32_t)if2 << 16) | ((uint32_t)if1 << 8) | (uint32_t)if0;
 }
 
 // Write 0 to all interrupt flag registers to clear them and deassert INT.

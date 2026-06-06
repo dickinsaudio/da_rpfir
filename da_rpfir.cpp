@@ -179,8 +179,11 @@ int main()
         sleep_ms(10);
         if (renderer_int_asserted()) {
             printf("Renderer INT asserted\n");
-            uint8_t vol = renderer_poll_volume();
-            printf("Renderer volume: %d\n", vol);
+            uint32_t interrupts = renderer_read_interrupts();
+            if (interrupts & RENDERER_IF0_VOL) {
+                uint8_t vol = renderer_poll_volume();
+                printf("Renderer volume: %d\n", vol);
+            }
             renderer_clear_interrupts();
         }
     }
