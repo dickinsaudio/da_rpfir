@@ -167,6 +167,7 @@ Target_sources(da_rpfir   PRIVATE
                             pwm.c
                             CT7302.c
                             peripherals.cpp
+                            renderer.cpp
                             )
 
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)

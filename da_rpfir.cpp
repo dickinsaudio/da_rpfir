@@ -4,6 +4,7 @@
 #include "pwm.h"
 #include "CT7302.h"
 #include "peripherals.hpp"
+#include "renderer.hpp"
 
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
@@ -53,6 +54,9 @@ void setup_ct7302()
 }
 
 
+
+
+
 int main()
 {
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
@@ -65,7 +69,10 @@ int main()
     gpio_init(I2S_OUT_SD_PIN);                     // I2S SD pin - set to output and low to prevent noise during boot
     gpio_set_dir(I2S_OUT_SD_PIN, GPIO_OUT);
     gpio_put(I2S_OUT_SD_PIN, 0);
-    
+
+    // Keep SPI CS pins deasserted (high) during boot so renderer and W5500 don't see spurious transactions
+    gpio_pull_up(17);   // SPI0 CS (W5500 / Renderer shared)
+
     gpio_init(I2S_EN);                             // Renderer Off 
     gpio_set_dir(I2S_EN, GPIO_OUT);
     gpio_put(I2S_EN, 0);
@@ -150,9 +157,34 @@ int main()
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();
 
+
+    sleep_ms(1000);
+
+#if 0
+    while(1)
+    {
+        sleep_ms(100);
+        printf("Alive\n");
+    }
+
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");
-    start_web();
+    //start_web();
+#else
+
+
+    renderer_init();
+    while(1)
+    {
+        sleep_ms(10);
+        if (renderer_int_asserted()) {
+            printf("Renderer INT asserted\n");
+            uint8_t vol = renderer_poll_volume();
+            printf("Renderer volume: %d\n", vol);
+            renderer_clear_interrupts();
+        }
+    }
+#endif
     
     rom_reset_usb_boot(-1,0);       // Back to bootloader
 

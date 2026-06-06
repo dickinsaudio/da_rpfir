@@ -301,10 +301,6 @@ void core_audio()
     fir_setup();
     i2s_setup();
 
-    gpio_init(26);                  // AKM enable
-    gpio_set_dir(26, GPIO_OUT);
-    gpio_put(26, 1);     
-
     while(1)
     {
         int64_t now = now_ns();
