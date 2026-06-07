@@ -161,6 +161,7 @@ Target_sources(da_rpfir   PRIVATE
                             core_web.cpp 
                             w5500_udp.cpp
                             flash.cpp
+                            volume.cpp
                             daes67_lite/histogram.cpp 
                             daes67_lite/log.cpp 
                             daes67_lite/http_server.cpp
@@ -168,6 +169,7 @@ Target_sources(da_rpfir   PRIVATE
                             CT7302.c
                             peripherals.cpp
                             renderer.cpp
+                            volume.cpp
                             )
 
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)

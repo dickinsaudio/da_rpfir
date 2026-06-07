@@ -13,7 +13,7 @@
 // The SPI routine will use the state machine address registers to determine how much of the buffer to use or fill.
 //
 
-#define     CLK_I2S         (192000)                                         
+#define     CLK_I2S         SAMPLE_RATE                                     // The I2S audio frequency
 #define     CLK_PIO         (CLK_I2S*64*16)                                 // PIO execution rate (16 cycles each bit of I2S)
 #define     CLK_PIO_DIV_N   ((int)(CLK_SYS/CLK_PIO))                        // PIO clock divider integer part
 #define     CLK_PIO_DIV_F   ((int)(((CLK_SYS%CLK_PIO)*256LL+128)/CLK_PIO))  // PIO clock divider fractional part

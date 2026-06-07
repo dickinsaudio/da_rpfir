@@ -104,6 +104,7 @@ using namespace DAES67;
 
 #define     REG_VOLTAGE     VREG_VOLTAGE_1_15                               // Voltage regulator setting       
 #define     CLK_SYS         (288000000L)                                    // The system clock frequency
+#define     SAMPLE_RATE     (192000)                                        // The audio sample rate
 
 
 //#define     FILTER_0         SGR_High_SGR
