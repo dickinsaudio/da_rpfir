@@ -3,6 +3,7 @@
 #include "da_rpfir.hpp"
 #include "i2s.pio.h"
 #include "arm_math.h"
+#include "volume.hpp"
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -182,21 +183,23 @@ void i2s_setup()
 #define M_FIR       3               // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
-float32_t   buf_x[CHANS][2*N_FFT];                   
+float32_t   buf_x[CHANS][2*N_FFT];  // TODO Since this is in FIR buffer, we can avoid a slide move and also use buf_y                 
 float32_t   buf_X[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_H[CHANS][M_FIR][2*N_FFT];
 float32_t   buf_Y[2*N_FFT];
-float32_t   buf_tmp[2*N_FFT];
+float32_t   buf_y[CHANS][2*N_FFT];
 arm_rfft_fast_instance_f32 FFT;
 
 #include "Filters.h"
 
 void fir_load_coefficients(const float32_t *h, int length, int channel)
 {
+    // buf_tmp borrows buf_y[0] - safe here as we are only loading at the start
+    float32_t *buf_tmp = buf_y[0];
     memset(buf_H[channel], 0, sizeof(buf_H[channel]));
     for (int n=0; n<length; n+=I2S_BLOCK) 
     {
-        memset(buf_tmp, 0, sizeof(buf_tmp));
+        memset(buf_tmp, 0, 2*N_FFT*sizeof(float32_t));
         for (int t=0; t<I2S_BLOCK && t<(length-n); t++) buf_tmp[t] = h[t+n];
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_H[channel][n/I2S_BLOCK], 0);
     }
@@ -208,16 +211,12 @@ void fir_setup()
     memset(buf_X, 0, sizeof(buf_X));
     memset(buf_H, 0, sizeof(buf_H));
     memset(buf_Y, 0, sizeof(buf_Y));
+    memset(buf_y, 0, sizeof(buf_y));
     memset(i2s_in, 0, sizeof(i2s_in));
     memset(i2s_out, 0, sizeof(i2s_out));
     memset(audio_in_peaks, 0, sizeof(audio_in_peaks));
     memset(audio_out_peaks, 0, sizeof(audio_out_peaks));    
-    buf_x[0][T_FFT] = 1.0F;
-    buf_x[1][T_FFT] = 1.0F;
-
-    for (int n=0; n<N_FFT; n++) buf_H[0][0][2*n] = 0.5F; 
-    //buf_H[0][0][1] = 0.5F;
-
+    
     #if N_FFT == 2048
     arm_status status = arm_rfft_fast_init_4096_f32(&FFT);
     #elif N_FFT == 1024
@@ -239,9 +238,11 @@ void fir_compute(int32_t *x, int32_t *y)
     static int m=0;
     for (int i=0; i<CHANS; i++)
     {   
+        float32_t *buf_tmp = buf_y[i];
         memmove(buf_x[i], buf_x[i]+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
 
-        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i]*(1.0F/0x80000000);
+        // TODO Don't need this scaling
+        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i];
         memmove(buf_tmp, buf_x[i], 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
 
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[i][m], 0);
@@ -254,21 +255,34 @@ void fir_compute(int32_t *x, int32_t *y)
             buf_tmp[1] = buf_X[i][(m-n+M_FIR)%M_FIR][1] * buf_H[i][n][1];
             arm_add_f32(buf_Y, buf_tmp, buf_Y, 2*N_FFT);
         }
-        memset(buf_tmp, 0, sizeof(buf_tmp));
         arm_rfft_fast_f32(&FFT, buf_Y, buf_tmp, 1);
-        for (int n=0; n<T_FFT; n++) 
-        {
-            float32_t val = buf_tmp[2*N_FFT - T_FFT + n] * (0x80000000LL);
-            if (val> 0x7FFFFE00LL) val = 0x7FFFFE00LL;
-            else if (val < -0x80000000LL) val = -0x80000000LL;
-            
-            // Scale down by 0.3dB and zero last two bits for I2S CRO reading
-            y[2*n + i] = ((int32_t)(buf_tmp[2*N_FFT - T_FFT + n] * (float)(0x80000000LL) * 0.9772F)) & 0xFFFFFFFC;  
-        }
+        // result in buf_tmp (== buf_y[i])[2*N_FFT - T_FFT .. 2*N_FFT - 1]
     
 
     }
     m = (m+1)%M_FIR;
+
+    int32_t *yp = y;
+    float32_t *buf1 = buf_y[0] + 2*N_FFT - T_FFT;
+#if CHANS == 2    
+    float32_t *buf2 = buf_y[1] + 2*N_FFT - T_FFT;
+#endif
+    for (int n = 0; n < T_FFT; n++)
+    {
+        const float gain = volume_update();
+        float32_t val = *buf1++ * gain;
+        if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
+        else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
+        *yp++ = ((int32_t)val) & 0xFFFFFFFC;
+#if CHANS == 2
+        val = *buf2++ * gain;
+        if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
+        else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
+        *yp++ = ((int32_t)val) & 0xFFFFFFFC;
+#else  
+        *yp++ = 0;  // Silence on second channel        
+#endif        
+    }
 }
 
 

@@ -27,23 +27,19 @@
 
 #pragma once
 
-// ---------------------------------------------------------------------------
-// API  (state is private to volume.cpp)
-// ---------------------------------------------------------------------------
-
-// Set target volume (0 = silence, 100 = 0 dB full scale).
+// Set target volume (0 = silence, 100 = 0 dB full scale)  1dB steps
+// Note there is a small headroom built in of 0.5dB
 //
 //   time_ms        - minimum time to reach target (milliseconds)
 //   slew_db_per_s  - maximum slew rate (dB/second)
 //
 // Both constrain the ramp; whichever gives the slower transition wins.
 // If time_ms == 0 and slew_db_per_s == 0 the gain snaps instantly.
-// Call from non-RT thread (Core 0) only.
 void  volume_set(int level, float time_ms, float slew_db_per_s);
 
 // Advance gain one sample toward the target; returns current gain.
 // Fast-path cost (already at target): one branch + two loads.
-// Call from RT audio thread (Core 1) at every sample.
+// Worst path about 20 cycles - 1.5% core at 192kHz sample rate
 float volume_update();
 
 // Return current gain without advancing the ramp.

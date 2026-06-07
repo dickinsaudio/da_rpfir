@@ -43,21 +43,21 @@ static volatile bool  s_at_target = true;
 static float          s_scale_up   = 1.0f;
 static float          s_scale_down = 1.0f;
 
-#define SILENCE_FLOOR  0.99e-5f   // -100 dB - floor used to avoid pow(0) / log(0)
+#define SILENCE_FLOOR          0.99e-5f   // -100 dB - floor used to avoid pow(0) / log(0)
+#define VOLUME_GAIN_OFFSET_DB  0.5f        // headroom: level 100 = -0.5 dB
 
 // ---------------------------------------------------------------------------
 // level_to_gain
 // ---------------------------------------------------------------------------
 // Level 0   -> 0.0  (silence / mute)
-// Level 1   -> 10^(-99/20)  (-99 dB)
-// Level 99  -> 10^(-1/20)   ( -1 dB)
-// Level 100 -> 1.0           (  0 dB)
-// Each integer step is exactly 1 dB: dB = level - 100
+// Level 1   -> 10^((-99 - 0.5)/20)  (-99.5 dB)
+// Level 100 -> 10^(-0.5/20)          (-0.5 dB = VOLUME_GAIN_OFFSET_DB)
+// Each integer step is exactly 1 dB: dB = (level - 100) - VOLUME_GAIN_OFFSET_DB
 static float level_to_gain(int level)
 {
-    if (level <= 0)   return 0.0f;
-    if (level >= 100) return 1.0f;
-    const float dB = (float)(level - 100);
+    if (level <= 0)  return 0.0f;
+    if (level > 100) level = 100;
+    const float dB = (float)(level - 100) - VOLUME_GAIN_OFFSET_DB;
     return powf(10.0f, dB / 20.0f);
 }
 
