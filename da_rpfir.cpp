@@ -157,19 +157,10 @@ int main()
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();
 
-
-    sleep_ms(1000);
-
 #if 0
-    while(1)
-    {
-        sleep_ms(100);
-        printf("Alive\n");
-    }
-
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");
-    //start_web();
+    start_web();
 #else
 
 

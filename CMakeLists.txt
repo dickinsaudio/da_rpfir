@@ -15,7 +15,7 @@ add_definitions(-DPICO_DEF)
 add_definitions(-DPICO_DEFAULT_UART_TX_PIN=12)
 add_definitions(-DPICO_DEFAULT_UART_RX_PIN=13)     
 
-add_definitions(-Dsyslog_size=128*1024)  # Increase syslog buffer to 128KB
+add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog - frees 96KB for M_FIR=3 + SRAM twiddle tables
 
 
 message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")

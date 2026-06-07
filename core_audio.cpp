@@ -47,9 +47,9 @@ int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out_trigger[I2S_BUFFER/I2S_BLOCK];
 Histogram i2s_dma_timing("I2S DMA Timing", 0, .050F);
 Histogram i2s_dma_execution("I2S DMA Execution", 0, .050F);
 
-void fir_compute(int32_t *x, int32_t *y);
+void __not_in_flash() fir_compute(int32_t *x, int32_t *y);
 
-__not_in_flash() void i2s_dma_handler(void) 
+void __not_in_flash() i2s_dma_handler(void) 
 {
     dma_hw->ints0 = 1u << i2s_in_dma2;   // Clear the interrupt request
     int64_t time = now_ns();
@@ -180,7 +180,7 @@ void i2s_setup()
 
 #define T_FFT       I2S_BLOCK       // The stride of time samples between each FFT
 #define N_FFT       T_FFT           // The size of the complex FFT we will be using
-#define M_FIR       3               // The number of blocks to use for filtering
+#define M_FIR       4               // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
 float32_t   buf_x[CHANS][2*N_FFT];  // TODO Since this is in FIR buffer, we can avoid a slide move and also use buf_y                 
@@ -191,6 +191,15 @@ float32_t   buf_y[CHANS][2*N_FFT];
 arm_rfft_fast_instance_f32 FFT;
 
 #include "Filters.h"
+#include "arm_common_tables.h"
+
+// RAM copies of CMSIS-DSP twiddle/bitrev tables.
+// The flash originals are ~40KB total - larger than the 16KB XIP cache - so every
+// FFT call causes compulsory cache misses.  Copying them to SRAM at startup
+// eliminates flash traffic for the hot audio path entirely.
+static float32_t  ram_twiddle_cfft[4096];                                   // 16KB - twiddleCoef_2048 (CFFT inner loop)
+static float32_t  ram_twiddle_rfft[4096];                                   // 16KB - twiddleCoef_rfft_4096 (RFFT split stage)
+static uint16_t   ram_bitrev[ARMBITREVINDEXTABLE_2048_TABLE_LENGTH];         //  7.6KB - armBitRevIndexTable2048
 
 void fir_load_coefficients(const float32_t *h, int length, int channel)
 {
@@ -229,11 +238,21 @@ void fir_setup()
     if (status != ARM_MATH_SUCCESS) Notice("FFT INIT FAILED %d", status);
     else                            Notice("FFT INIT SUCCESS");
 
+    // Copy twiddle and bit-reversal tables from flash to SRAM and redirect
+    // the FFT instance pointers so arm_rfft_fast_f32 never touches flash.
+    memcpy(ram_twiddle_cfft, FFT.Sint.pTwiddle,     sizeof(ram_twiddle_cfft));
+    memcpy(ram_twiddle_rfft, FFT.pTwiddleRFFT,      sizeof(ram_twiddle_rfft));
+    memcpy(ram_bitrev,       FFT.Sint.pBitRevTable,  sizeof(ram_bitrev));
+    FFT.Sint.pTwiddle     = ram_twiddle_cfft;
+    FFT.pTwiddleRFFT      = ram_twiddle_rfft;
+    FFT.Sint.pBitRevTable = ram_bitrev;
+    Notice("FFT TABLES COPIED TO SRAM");
+
     fir_load_coefficients(FILTER_0, sizeof(FILTER_0)/sizeof(float32_t), 0);
     fir_load_coefficients(FILTER_1, sizeof(FILTER_1)/sizeof(float32_t), 1);
 }
 
-void fir_compute(int32_t *x, int32_t *y)
+void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 {
     static int m=0;
     for (int i=0; i<CHANS; i++)
@@ -241,13 +260,12 @@ void fir_compute(int32_t *x, int32_t *y)
         float32_t *buf_tmp = buf_y[i];
         memmove(buf_x[i], buf_x[i]+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
 
-        // TODO Don't need this scaling
         for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i];
         memmove(buf_tmp, buf_x[i], 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
 
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[i][m], 0);
 
-            memset(buf_Y, 0, sizeof(buf_Y));
+        memset(buf_Y, 0, sizeof(buf_Y));
         for (int n=0; n<M_FIR; n++)
         {
             arm_cmplx_mult_cmplx_f32(buf_X[i][(m-n+M_FIR)%M_FIR], buf_H[i][n], buf_tmp, N_FFT);
@@ -302,7 +320,7 @@ void start_audio()
 
 int64_t last_dump  = now_ns();
 
-void core_audio()
+void __not_in_flash() core_audio()
 {
     Notice("CORE AUDIO STARTING"); 
     
