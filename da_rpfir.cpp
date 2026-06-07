@@ -5,6 +5,7 @@
 #include "CT7302.h"
 #include "peripherals.hpp"
 #include "renderer.hpp"
+#include "volume.hpp"
 
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
@@ -173,6 +174,8 @@ int main()
             uint32_t interrupts = renderer_read_interrupts();
             if (interrupts & RENDERER_IF0_VOL) {
                 uint8_t vol = renderer_poll_volume();
+                if (vol == 0) volume_set(vol, 200, 0);  // Mute immediately
+                else          volume_set(vol, 200, 50);  
                 printf("Renderer volume: %d\n", vol);
             }
             renderer_clear_interrupts();

@@ -76,6 +76,10 @@ void volume_set(int level, float time_ms, float slew_db_per_s)
     if (new_target == s_target) return;
     s_target = new_target;
 
+    // If current gain is zero and target is higher, seed gain to SILENCE_FLOOR
+    // so the multiplicative ramp has a non-zero starting point.
+    if (new_target > 0.0f && s_gain == 0.0f) s_gain = SILENCE_FLOOR;
+
     // Work out N (number of samples to reach target) from each constraint,
     // then take the larger (slower) value so both limits are respected.
     float N = 0.0f;
