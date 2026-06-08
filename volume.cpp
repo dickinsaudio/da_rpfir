@@ -37,14 +37,35 @@
 // Core 0 writes s_target/s_scale*/s_at_target via volume_set_*().
 // Core 1 reads/writes all fields via volume_update().
 // ---------------------------------------------------------------------------
-static volatile float s_gain      = 1.0f;
-static volatile float s_target    = 1.0f;
+static volatile float s_gain      = 0.0f;
+static volatile float s_target    = 0.0f;
 static volatile bool  s_at_target = true;
 static float          s_scale_up   = 1.0f;
 static float          s_scale_down = 1.0f;
 
-#define SILENCE_FLOOR          0.99e-5f   // -100 dB - floor used to avoid pow(0) / log(0)
-#define VOLUME_GAIN_OFFSET_DB  0.5f        // headroom: level 100 = -0.5 dB
+
+#define VOLUME_SILENCE_FLOOR   0.99e-4f   // -100 dB - floor used to avoid pow(0) / log(0)
+#define VOLUME_MAX_DB          0.2f       // headroom: level 100 = -0.2 dB
+
+
+
+
+// db = single([20*log10(realmin('single')), -30 - 50*(0.39*((39:-1:0)/39) + 0.61*((39:-1:0)/39).^2), -29.5:0.5:0]);
+static float s_volume_table[101] = 
+{ 
+    500.00,  80.00,  77.96,  75.95,  73.99,  72.06,  70.18,  68.34,  66.53,  64.77, 
+     63.05,  61.36,  59.72,  58.12,  56.56,  55.03,  53.55,  52.11,  50.71,  49.34, 
+     48.02,  46.74,  45.50,  44.30,  43.13,  42.01,  40.93,  39.89,  38.89,  37.93, 
+     37.01,  36.12,  35.28,  34.48,  33.72,  33.00,  32.32,  31.68,  31.08,  30.52, 
+     30.00,  29.50,  29.00,  28.50,  28.00,  27.50,  27.00,  26.50,  26.00,  25.50, 
+     25.00,  24.50,  24.00,  23.50,  23.00,  22.50,  22.00,  21.50,  21.00,  20.50, 
+     20.00,  19.50,  19.00,  18.50,  18.00,  17.50,  17.00,  16.50,  16.00,  15.50, 
+     15.00,  14.50,  14.00,  13.50,  13.00,  12.50,  12.00,  11.50,  11.00,  10.50, 
+     10.00,   9.50,   9.00,   8.50,   8.00,   7.50,   7.00,   6.50,   6.00,   5.50, 
+      5.00,   4.50,   4.00,   3.50,   3.00,   2.50,   2.00,   1.50,   1.00,   0.50, 
+     VOLUME_MAX_DB
+};
+
 
 // ---------------------------------------------------------------------------
 // level_to_gain
@@ -56,9 +77,9 @@ static float          s_scale_down = 1.0f;
 static float level_to_gain(int level)
 {
     if (level <= 0)  return 0.0f;
-    if (level > 100) level = 100;
-    const float dB = (float)(level - 100) - VOLUME_GAIN_OFFSET_DB;
-    return powf(10.0f, dB / 20.0f);
+    if (level > 100) level = 0;    // Safer to mute on invalid level
+    const float dB = s_volume_table[level];
+    return powf(10.0f, - dB / 20.0f);
 }
 
 void volume_set(int level, float time_ms, float slew_db_per_s)
@@ -78,15 +99,15 @@ void volume_set(int level, float time_ms, float slew_db_per_s)
 
     // If current gain is zero and target is higher, seed gain to SILENCE_FLOOR
     // so the multiplicative ramp has a non-zero starting point.
-    if (new_target > 0.0f && s_gain == 0.0f) s_gain = SILENCE_FLOOR;
+    if (new_target > 0.0f && s_gain == 0.0f) s_gain = VOLUME_SILENCE_FLOOR;
 
     // Work out N (number of samples to reach target) from each constraint,
     // then take the larger (slower) value so both limits are respected.
     float N = 0.0f;
 
     if (slew_db_per_s > 0.0f) {
-        const float g      = ((float)s_gain > SILENCE_FLOOR) ? (float)s_gain : SILENCE_FLOOR;
-        const float target = (new_target    > SILENCE_FLOOR) ? new_target    : SILENCE_FLOOR;
+        const float g      = ((float)s_gain > VOLUME_SILENCE_FLOOR) ? (float)s_gain : VOLUME_SILENCE_FLOOR;
+        const float target = (new_target    > VOLUME_SILENCE_FLOOR) ? new_target    : VOLUME_SILENCE_FLOOR;
         const float dB_dist = fabsf(20.0f * log10f(target / g));
         N = dB_dist / slew_db_per_s * (float)SAMPLE_RATE;
     }
@@ -102,8 +123,8 @@ void volume_set(int level, float time_ms, float slew_db_per_s)
         return;
     }
 
-    const float g      = ((float)s_gain > SILENCE_FLOOR) ? (float)s_gain : SILENCE_FLOOR;
-    const float target = (new_target    > SILENCE_FLOOR) ? new_target    : SILENCE_FLOOR;
+    const float g      = ((float)s_gain > VOLUME_SILENCE_FLOOR) ? (float)s_gain : VOLUME_SILENCE_FLOOR;
+    const float target = (new_target    > VOLUME_SILENCE_FLOOR) ? new_target    : VOLUME_SILENCE_FLOOR;
     const float scale  = powf(target / g, 1.0f / N);
 
     if (new_target > (float)s_gain) {
@@ -132,7 +153,7 @@ float volume_update()
         if (g >= t) { g = t; s_at_target = true; }
     } else {
         g *= s_scale_down;
-        const float floor = (t > SILENCE_FLOOR) ? t : SILENCE_FLOOR;
+        const float floor = (t > VOLUME_SILENCE_FLOOR) ? t : VOLUME_SILENCE_FLOOR;
         if (g <= floor) { g = t; s_at_target = true; }
     }
 

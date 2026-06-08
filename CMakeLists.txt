@@ -15,6 +15,7 @@ add_definitions(-DPICO_DEF)
 add_definitions(-DPICO_DEFAULT_UART_TX_PIN=12)
 add_definitions(-DPICO_DEFAULT_UART_RX_PIN=13)     
 
+
 add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog - frees 96KB for M_FIR=3 + SRAM twiddle tables
 
 
@@ -36,10 +37,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
-
-# Ensure you're building the ARM M33 platform (not the RISC-V/Hazard3 one)
-# (Your current "rp2350" may work, but this makes it explicit.)
-set(PICO_PLATFORM rp2350-arm-s)  # :contentReference[oaicite:2]{index=2}
 
 add_library(cmsis_dsp STATIC)
 set(CMSIS_DSP_ROOT ${CMAKE_CURRENT_LIST_DIR}/extern/CMSIS-DSP)

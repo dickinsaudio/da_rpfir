@@ -128,8 +128,8 @@ int main()
     gpio_init(VA_PWM1); 
     pwmInit( VA_PWM1, PWM_MAX, PWM_FREQ_KHZ, 0 );
 
-    setPemLvl(VA_PWM0, M_12DB_PWM_VAL);
-    setPemLvl(VA_PWM1, M_12DB_PWM_VAL);
+    setPemLvl(VA_PWM0, _0DB_PWM_VAL);
+    setPemLvl(VA_PWM1, _0DB_PWM_VAL);
     sleep_ms(100); // Wait for rails to stabilize
 
 #else
@@ -146,7 +146,7 @@ int main()
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
 
-    setup_ct7302();            // Start the CT7302 and set it to max volume (0dB attenuation)
+    setup_ct7302();            // Start the CT7302 and set it to m ax volume (0dB attenuation)
 
     gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
     sleep_ms(100);
@@ -174,8 +174,8 @@ int main()
             uint32_t interrupts = renderer_read_interrupts();
             if (interrupts & RENDERER_IF0_VOL) {
                 uint8_t vol = renderer_poll_volume();
-                if (vol == 0) volume_set(vol, 200, 0);  // Mute immediately
-                else          volume_set(vol, 200, 50);  
+                if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
+                else                      volume_set(vol, 100, 80);  
                 printf("Renderer volume: %d\n", vol);
             }
             renderer_clear_interrupts();
