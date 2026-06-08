@@ -62,6 +62,12 @@ void setup_ct7302()
 
 int main()
 {
+    // Set the voltage regulator
+    vreg_set_voltage(REG_VOLTAGE);
+    set_sys_clock_khz(CLK_SYS/1000, false);
+    uint32_t freq = clock_get_hz(clk_sys);
+    clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, freq, freq);        // Allow overclock of PERI
+
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
     for (int n=0; n<32; n++) gpio_set_pulls(n, false,false);    // No pullups or pulldowns
 
@@ -82,6 +88,9 @@ int main()
 
     power_init();
 
+    stdio_init_all();
+    sleep_ms(10);
+
     i2c_write(0x10, 0x10, 0xC7);                    // Force the output of the ASRC off until we need it
 
     core_idle[0].configure("Core 0 Idle", 0, 100);
@@ -90,19 +99,9 @@ int main()
     core_stall[0].configure("Core 0 Stall", 0, 0.010);
     core_stall[1].configure("Core 1 Stall", 0, 0.010);
 
-
-    // Set the voltage regulator
-    vreg_set_voltage(REG_VOLTAGE);
-    set_sys_clock_khz(CLK_SYS/1000, false);
-    uint32_t freq = clock_get_hz(clk_sys);
-    clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, freq, freq);        // Allow overclock of PERI
-    stdio_init_all();
-    sleep_ms(10);
-    
     printf("\n\n\n");
     LogConsole(LOG_UPTO(LOG_DEBUG));
 
-    sleep_ms(100);                // Lowers the chance of a fail during flash load and resave
     flash_load();
 
     Notice("*********************************************");
@@ -123,7 +122,7 @@ int main()
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
 
-    setup_ct7302();            // Start the CT7302 and set it to m ax volume (0dB attenuation)
+    setup_ct7302();            // Start the CT7302 and set it to max volume (0dB attenuation)
 
     gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
     sleep_ms(100);

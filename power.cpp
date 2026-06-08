@@ -44,7 +44,7 @@
 //---------------------------------------------------------------------------
 #define POWER_R_HIGH_OHM        47000.0f    // High-side resistor (ohms)
 #define POWER_R_LOW_OHM          3300.0f    // Low-side resistor (ohms)
-#define POWER_ADC_VREF             3.295f   // ADC reference voltage (volts)
+#define POWER_ADC_VREF             3.296f   // ADC reference voltage (volts)
 #define POWER_ADC_OFFSET              10    // ADC counts to offset for 0V 
 #define POWER_ADC_MAX               4092    // ADC maximum count (12-bit)
 
@@ -86,10 +86,6 @@ void power_init()
     gpio_init(POWER_VAMP_EN_PIN);
     gpio_set_dir(POWER_VAMP_EN_PIN, GPIO_OUT);
     gpio_put(POWER_VAMP_EN_PIN, 0);
-
-    sleep_ms(10000);  
-    printf("Power management init\n");
-    // VAMP_EN — disabled until power_enable(true)
 
     power_adc_setup();
 
