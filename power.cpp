@@ -36,7 +36,7 @@
 //---------------------------------------------------------------------------
 // ADC SETUP
 //---------------------------------------------------------------------------
-#define POWER_ADC_WINDOW   32      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
+#define POWER_ADC_WINDOW   20      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
 #define POWER_ADC_RATE     16000   // ADC sampling rate
 
 //---------------------------------------------------------------------------
@@ -63,6 +63,9 @@
 // ---------------------------------------------------------------------------
 #define POWER_PWM_MAX           1023    // PWM wrap / top value (10-bit)
 #define POWER_PWM_FREQ_KHZ      100     // PWM switching frequency (kHz)
+#define POWER_PWM_START      ((int)(POWER_PWM_MAX * 0.3f))   // About 6V
+
+
 
 // ---------------------------------------------------------------------------
 // Module state
@@ -91,16 +94,21 @@ void power_init()
 
     power_adc_setup();
 
-    // PWM outputs — start at POWER_PWM_NOMINAL (~43V), closed loop trims from there
+    // GPIO 22 and 23 share the same PWM slice, so pwm_init() for the second pin
+    // resets the CC register and zeros the first pin's duty cycle.
+    // Both inits must complete before setting either level.
     gpio_init(POWER_PWM0_PIN);
     pwmInit(POWER_PWM0_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, 0);
-    setPemLvl(POWER_PWM0_PIN, POWER_PWM_NOMINAL);
-    power_pwm_values[0] = 0;
-
     gpio_init(POWER_PWM1_PIN);
     pwmInit(POWER_PWM1_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, 0);
-    setPemLvl(POWER_PWM1_PIN, POWER_PWM_NOMINAL);
-    power_pwm_values[1] = 0;
+
+    // Set both levels now that the slice is fully initialised.
+    setPemLvl(POWER_PWM0_PIN, POWER_PWM_START);
+    power_pwm_values[0] = POWER_PWM_START;
+    setPemLvl(POWER_PWM1_PIN, POWER_PWM_START);
+    power_pwm_values[1] = POWER_PWM_START;
+
+
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +151,8 @@ __not_in_flash() void power_adc_isr()
     }
     power_voltage[0] = power_adc_to_voltage((float)sum[0] / POWER_ADC_WINDOW);
     power_voltage[1] = power_adc_to_voltage((float)sum[1] / POWER_ADC_WINDOW);
+
+    if (s_target_volts == 0.0f) return;   // Don't adjust if target is 0 (off)
 
     if (power_voltage[0] < s_target_volts - POWER_VOLTAGE_HYESTERSIS) power_pwm_values[0]++;
     if (power_voltage[0] > s_target_volts + POWER_VOLTAGE_HYESTERSIS && power_pwm_values[0] > 0) power_pwm_values[0]--;

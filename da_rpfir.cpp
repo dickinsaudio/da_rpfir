@@ -8,6 +8,8 @@
 #include "volume.hpp"
 #include "hardware/adc.h"
 #include "power.hpp"
+#include "hardware/pwm.h"
+
 
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
@@ -127,7 +129,14 @@ int main()
 
     renderer_init();
 
-    int64_t next_power_update = now_ns();
+    // Prime the volume with whatever the renderer currently reports so the
+    // DSP gain is never stuck at 0 waiting for the first interrupt.
+    {
+        uint8_t vol = renderer_poll_volume();
+        if (vol == 0 || vol & 0x80) volume_set(0, 0, 0);
+        else                        volume_set(vol, 0, 0);
+    }
+
     int64_t next_renderer_poll = now_ns();
     int64_t next_status_dump = now_ns();
 
@@ -150,15 +159,6 @@ int main()
                 next_renderer_poll += + 10000000;
             }
             else next_renderer_poll = now_ns() + 1000000;
-        }
-
-        if (time > next_power_update) 
-        {
-            static int high = false;
-            if (high) power_set_voltage(40.0f);
-            else      power_set_voltage(6.0f);
-            high = !high;
-            next_power_update += 10000000000;            
         }
 
         if (time > next_status_dump) 

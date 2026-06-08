@@ -28,22 +28,6 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// PWM starting value — empirically: 1016 gives ~43V, 1023 gives ~50V+, 0 also gives ~50V+.
-// This is the safe nominal start point; the closed loop fine-tunes from here.
-#define POWER_PWM_NOMINAL       ((int)(POWER_PWM_MAX * 0.994f))   // 1016 → ~43V
-
-// ---------------------------------------------------------------------------
-// Convenience target voltages (volts)
-// ---------------------------------------------------------------------------
-#define POWER_VOLTS_0DB             43.0f   // 0 dB amplifier rail
-#define POWER_VOLTS_M3DB            30.4f   // -3 dB
-#define POWER_VOLTS_M6DB            21.5f   // -6 dB
-#define POWER_VOLTS_M9DB            15.2f   // -9 dB
-#define POWER_VOLTS_M12DB           10.75f  // -12 dB
-#define POWER_VOLTS_M15DB            7.6f   // -15 dB
-#define POWER_VOLTS_M18DB            5.375f // -18 dB
-
-// ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
 
