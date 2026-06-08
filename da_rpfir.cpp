@@ -15,24 +15,9 @@ const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EV
 Histogram core_idle[2];
 Histogram core_stall[2];
 
-#define VAMP_EN       24
-#define VSEN0         28
-#define VSEN1         29
-#define VA_PWM0       22
-#define VA_PWM1       23
 #define I2S_EN        26 
 #define DAC_EN        27
 
-#define PWM_MAX 1023
-#define PWM_FREQ_KHZ  100
-
-#define _0DB_PWM_VAL    ( PWM_MAX * 0.994 )  //eg 43V
-#define M_3DB_PWM_VAL   ( PWM_MAX * 0.756 )  //eg 30.4V
-#define M_6DB_PWM_VAL   ( PWM_MAX * 0.590 )  //eg 21.5V
-#define M_9DB_PWM_VAL   ( PWM_MAX * 0.474 )  //eg 15.2V
-#define M_12DB_PWM_VAL  ( PWM_MAX * 0.391 )  //eg 10.75
-#define M_15DB_PWM_VAL  ( PWM_MAX * 0.332 )  //eg 7.6V
-#define M_18DB_PWM_VAL  ( PWM_MAX * 0.291 )  //eg 5.375V
 
 
 void setup_ct7302()
@@ -127,7 +112,7 @@ int main()
     gpio_put(I2S_EN, 1);        // If ASRC is up, then turn on the renderer
     sleep_ms(100);
   
-    gpio_put(VAMP_EN, 1);       // Turn on the amp power
+    power_enable(true);       // Turn on the amp power
     sleep_ms(100);
 
     Notice("*********************************************");
@@ -141,22 +126,47 @@ int main()
 #else
 
     renderer_init();
+
+    int64_t next_power_update = now_ns();
+    int64_t next_renderer_poll = now_ns();
+    int64_t next_status_dump = now_ns();
+
     while(1)
     {
-        sleep_ms(10);
-        if (renderer_int_asserted()) {
-            printf("Renderer INT asserted\n");
-            uint32_t interrupts = renderer_read_interrupts();
-            if (interrupts & RENDERER_IF0_VOL) {
-                uint8_t vol = renderer_poll_volume();
-                if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
-                else                      volume_set(vol, 100, 80);  
-                printf("Renderer volume: %d\n", vol);
+        int64_t time = now_ns();
+        if (time > next_renderer_poll) 
+        {   
+            if (renderer_int_asserted()) 
+            {
+                printf("Renderer INT asserted\n");
+                uint32_t interrupts = renderer_read_interrupts();
+                if (interrupts & RENDERER_IF0_VOL) {
+                    uint8_t vol = renderer_poll_volume();
+                    if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
+                    else                      volume_set(vol, 100, 80);  
+                    printf("Renderer volume: %d\n", vol);
+                }
+                renderer_clear_interrupts();        
+                next_renderer_poll += + 10000000;
             }
-            renderer_clear_interrupts();        
+            else next_renderer_poll = now_ns() + 1000000;
         }
-        printf("ADC: %.3f  %.3f\n", power_read_voltage(0), power_read_voltage(1));
-        sleep_ms(1);
+
+        if (time > next_power_update) 
+        {
+            static int high = false;
+            if (high) power_set_voltage(40.0f);
+            else      power_set_voltage(6.0f);
+            high = !high;
+            next_power_update += 10000000000;            
+        }
+
+        if (time > next_status_dump) 
+        {
+            extern uint16_t power_pwm_values[2];
+            printf("ADC: %.3f  %.3f    PWM: %d  %d\n", power_read_voltage(0), power_read_voltage(1), power_pwm_values[0], power_pwm_values[1]);
+            next_status_dump += 100000000;            
+        }
     }
 #endif
     

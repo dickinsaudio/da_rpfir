@@ -36,8 +36,8 @@
 //---------------------------------------------------------------------------
 // ADC SETUP
 //---------------------------------------------------------------------------
-#define POWER_ADC_WINDOW   64      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
-#define POWER_ADC_RATE     8000    // ADC sampling rate
+#define POWER_ADC_WINDOW   32      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
+#define POWER_ADC_RATE     16000   // ADC sampling rate
 
 //---------------------------------------------------------------------------
 // ADC scaling — convert raw ADC value to voltage at the amplifier rail
@@ -47,13 +47,14 @@
 #define POWER_ADC_VREF             3.296f   // ADC reference voltage (volts)
 #define POWER_ADC_OFFSET              10    // ADC counts to offset for 0V 
 #define POWER_ADC_MAX               4092    // ADC maximum count (12-bit)
+#define POWER_VOLTAGE_HYESTERSIS    0.05f
 
 // ---------------------------------------------------------------------------
 // GPIO pin assignments
 // ---------------------------------------------------------------------------
 #define POWER_VAMP_EN_PIN       24      // Amplifier PMIC enable (active high)
-#define POWER_PWM0_PIN          22      // PWM output — rail 0
-#define POWER_PWM1_PIN          23      // PWM output — rail 1
+#define POWER_PWM0_PIN          23      // PWM output — rail 0
+#define POWER_PWM1_PIN          22      // PWM output — rail 1
 #define POWER_VSEN0_PIN         28      // ADC input — rail 0 sense (ADC channel 2)
 #define POWER_VSEN1_PIN         29      // ADC input — rail 1 sense (ADC channel 3)
 
@@ -70,7 +71,8 @@ static float s_target_volts  = 0.0f;
 static bool power_adc_initialized = false;
 static int power_adc_dma1 = -1;
 static int power_adc_dma2 = -1;
-uint16_t power_adc_samples[2*POWER_ADC_WINDOW] = {};   // DMA buffer for ADC samples
+static uint16_t power_adc_samples[2*POWER_ADC_WINDOW] = {};   // DMA buffer for ADC samples
+uint16_t power_pwm_values[2] = {};                           // Current PWM values for each rail
 static float  power_voltage[2] = {};                         // Smoothed voltage readings in volts
 static uint32_t power_adc_trigger;
 
@@ -91,13 +93,14 @@ void power_init()
 
     // PWM outputs — start at POWER_PWM_NOMINAL (~43V), closed loop trims from there
     gpio_init(POWER_PWM0_PIN);
-    pwmInit(POWER_PWM0_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, POWER_PWM_NOMINAL);
+    pwmInit(POWER_PWM0_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, 0);
     setPemLvl(POWER_PWM0_PIN, POWER_PWM_NOMINAL);
+    power_pwm_values[0] = 0;
 
     gpio_init(POWER_PWM1_PIN);
-    pwmInit(POWER_PWM1_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, POWER_PWM_NOMINAL);
+    pwmInit(POWER_PWM1_PIN, POWER_PWM_MAX, POWER_PWM_FREQ_KHZ, 0);
     setPemLvl(POWER_PWM1_PIN, POWER_PWM_NOMINAL);
-
+    power_pwm_values[1] = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +143,16 @@ __not_in_flash() void power_adc_isr()
     }
     power_voltage[0] = power_adc_to_voltage((float)sum[0] / POWER_ADC_WINDOW);
     power_voltage[1] = power_adc_to_voltage((float)sum[1] / POWER_ADC_WINDOW);
+
+    if (power_voltage[0] < s_target_volts - POWER_VOLTAGE_HYESTERSIS) power_pwm_values[0]++;
+    if (power_voltage[0] > s_target_volts + POWER_VOLTAGE_HYESTERSIS && power_pwm_values[0] > 0) power_pwm_values[0]--;
+    if (power_voltage[1] < s_target_volts - POWER_VOLTAGE_HYESTERSIS) power_pwm_values[1]++;
+    if (power_voltage[1] > s_target_volts + POWER_VOLTAGE_HYESTERSIS && power_pwm_values[1] > 0) power_pwm_values[1]--;
+    if (power_pwm_values[0] > POWER_PWM_MAX) power_pwm_values[0] = POWER_PWM_MAX;
+    if (power_pwm_values[1] > POWER_PWM_MAX) power_pwm_values[1] = POWER_PWM_MAX;
+
+    setPemLvl(POWER_PWM0_PIN, power_pwm_values[0]);
+    setPemLvl(POWER_PWM1_PIN, power_pwm_values[1]);    
 }
 
 void power_adc_setup() 
@@ -152,7 +165,7 @@ void power_adc_setup()
         adc_run(false);
         adc_set_round_robin(0x0C);                              // ADC2 ADC3
         adc_fifo_setup(true, true, 1, false,  false);           // Enable with DMA, dreq on 1 sample, 12-bit (no shift)
-        adc_set_clkdiv((48000000LL/8000/2) - 1);                // Set the rate of sampling
+        adc_set_clkdiv((48000000LL/POWER_ADC_RATE/2) - 1);      // Set the rate of sampling
 
         adc_select_input(2);                                    // Shift start to get the I value last (lowest latency control)
         if (power_adc_dma1 < 0) power_adc_dma1 = dma_claim_unused_channel(true);    // Claim a DMA channel
