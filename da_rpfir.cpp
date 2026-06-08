@@ -6,6 +6,8 @@
 #include "peripherals.hpp"
 #include "renderer.hpp"
 #include "volume.hpp"
+#include "hardware/adc.h"
+#include "power.hpp"
 
 
 const char *DEVICE_BOARD_NAME_STRING[] = { "", "", "W5500_EVB_PICO", "W55RP20_EVB_PICO", "W5100S_EVB_PICO2", "W5500_EVB_PICO2" };
@@ -78,9 +80,7 @@ int main()
     gpio_set_dir(I2S_EN, GPIO_OUT);
     gpio_put(I2S_EN, 0);
 
-    gpio_init(VAMP_EN);                             // PMIC on Amp disable
-    gpio_set_dir(VAMP_EN, GPIO_OUT);
-    gpio_put(VAMP_EN, 0);      
+    power_init();
 
     i2c_write(0x10, 0x10, 0xC7);                    // Force the output of the ASRC off until we need it
 
@@ -119,30 +119,7 @@ int main()
     char buffer[2048] = {};
     flash_state(buffer, sizeof(buffer));
     Notice("%s",buffer);
-  
-#if 1
- 
-    gpio_init(VA_PWM0);
-    pwmInit( VA_PWM0, PWM_MAX, PWM_FREQ_KHZ, 0 );
-
-    gpio_init(VA_PWM1); 
-    pwmInit( VA_PWM1, PWM_MAX, PWM_FREQ_KHZ, 0 );
-
-    setPemLvl(VA_PWM0, _0DB_PWM_VAL);
-    setPemLvl(VA_PWM1, _0DB_PWM_VAL);
-    sleep_ms(100); // Wait for rails to stabilize
-
-#else
-
-    gpio_init(VA_PWM0);
-    gpio_set_dir(VA_PWM0, GPIO_OUT);
-    gpio_put(VA_PWM0, 1);
-    gpio_init(VA_PWM1);
-    gpio_set_dir(VA_PWM1, GPIO_OUT);
-    gpio_put(VA_PWM1, 1);
-    sleep_ms(100); // Wait for rails to stabilize
-#endif
-
+    
     gpio_put(DAC_EN, 1);        // Start the DAC so that it gives a clock to ASRC
     sleep_ms(100);
 
@@ -164,7 +141,6 @@ int main()
     start_web();
 #else
 
-
     renderer_init();
     while(1)
     {
@@ -178,8 +154,10 @@ int main()
                 else                      volume_set(vol, 100, 80);  
                 printf("Renderer volume: %d\n", vol);
             }
-            renderer_clear_interrupts();
+            renderer_clear_interrupts();        
         }
+        printf("ADC: %.3f  %.3f\n", power_read_voltage(0), power_read_voltage(1));
+        sleep_ms(1);
     }
 #endif
     

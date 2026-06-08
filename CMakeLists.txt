@@ -18,6 +18,13 @@ add_definitions(-DPICO_DEFAULT_UART_RX_PIN=13)
 
 add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog - frees 96KB for M_FIR=3 + SRAM twiddle tables
 
+# System clock: 288MHz (12MHz XTAL * 120 / 5 / 1 = 1440MHz VCO / 5 / 1)
+# Must define PLL parameters alongside SYS_CLK_KHZ, otherwise clocks.h emits a #error
+add_definitions(-DSYS_CLK_KHZ=288000)
+add_definitions(-DPLL_SYS_VCO_FREQ_HZ=1440000000)
+add_definitions(-DPLL_SYS_POSTDIV1=5)
+add_definitions(-DPLL_SYS_POSTDIV2=1)
+
 
 message(STATUS "WIZNET_CHIP = ${WIZNET_CHIP}")
 
@@ -159,6 +166,7 @@ Target_sources(da_rpfir   PRIVATE
                             w5500_udp.cpp
                             flash.cpp
                             volume.cpp
+                            power.cpp
                             daes67_lite/histogram.cpp 
                             daes67_lite/log.cpp 
                             daes67_lite/http_server.cpp
@@ -166,7 +174,6 @@ Target_sources(da_rpfir   PRIVATE
                             CT7302.c
                             peripherals.cpp
                             renderer.cpp
-                            volume.cpp
                             )
 
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)
