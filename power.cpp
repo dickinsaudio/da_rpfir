@@ -36,8 +36,8 @@
 //---------------------------------------------------------------------------
 // ADC SETUP
 //---------------------------------------------------------------------------
-#define POWER_ADC_WINDOW   20      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
-#define POWER_ADC_RATE     16000   // ADC sampling rate
+#define POWER_ADC_WINDOW   32      // Number of samples to average for ADC readings.  Adjust to taste: larger = smoother but slower response.
+#define POWER_ADC_RATE     8000    // ADC sampling rate
 
 //---------------------------------------------------------------------------
 // ADC scaling — convert raw ADC value to voltage at the amplifier rail
@@ -59,7 +59,14 @@
 #define POWER_VSEN1_PIN         29      // ADC input — rail 1 sense (ADC channel 3)
 
 // ---------------------------------------------------------------------------
-// PWM parameters
+// Pin drive mode — define POWER_GPIO_ONLY to drive PWM pins as plain GPIO
+// (logic 1 = always on, no switching) instead of using PWM.
+// Comment out to use normal PWM rail control.
+// ---------------------------------------------------------------------------
+#define POWER_GPIO_ONLY
+
+// ---------------------------------------------------------------------------
+// PWM parameters (unused when POWER_GPIO_ONLY is defined)
 // ---------------------------------------------------------------------------
 #define POWER_PWM_MAX           1023    // PWM wrap / top value (10-bit)
 #define POWER_PWM_FREQ_KHZ      100     // PWM switching frequency (kHz)
@@ -94,6 +101,15 @@ void power_init()
 
     power_adc_setup();
 
+#ifdef POWER_GPIO_ONLY
+    // Simple GPIO mode — drive both rail pins permanently high (always on).
+    gpio_init(POWER_PWM0_PIN);
+    gpio_set_dir(POWER_PWM0_PIN, GPIO_OUT);
+    gpio_put(POWER_PWM0_PIN, 1);
+    gpio_init(POWER_PWM1_PIN);
+    gpio_set_dir(POWER_PWM1_PIN, GPIO_OUT);
+    gpio_put(POWER_PWM1_PIN, 1);
+#else
     // GPIO 22 and 23 share the same PWM slice, so pwm_init() for the second pin
     // resets the CC register and zeros the first pin's duty cycle.
     // Both inits must complete before setting either level.
@@ -107,6 +123,7 @@ void power_init()
     power_pwm_values[0] = POWER_PWM_START;
     setPemLvl(POWER_PWM1_PIN, POWER_PWM_START);
     power_pwm_values[1] = POWER_PWM_START;
+#endif
 
 
 }
@@ -158,11 +175,13 @@ __not_in_flash() void power_adc_isr()
     if (power_voltage[0] > s_target_volts + POWER_VOLTAGE_HYESTERSIS && power_pwm_values[0] > 0) power_pwm_values[0]--;
     if (power_voltage[1] < s_target_volts - POWER_VOLTAGE_HYESTERSIS) power_pwm_values[1]++;
     if (power_voltage[1] > s_target_volts + POWER_VOLTAGE_HYESTERSIS && power_pwm_values[1] > 0) power_pwm_values[1]--;
+#ifndef POWER_GPIO_ONLY
     if (power_pwm_values[0] > POWER_PWM_MAX) power_pwm_values[0] = POWER_PWM_MAX;
     if (power_pwm_values[1] > POWER_PWM_MAX) power_pwm_values[1] = POWER_PWM_MAX;
 
     setPemLvl(POWER_PWM0_PIN, power_pwm_values[0]);
-    setPemLvl(POWER_PWM1_PIN, power_pwm_values[1]);    
+    setPemLvl(POWER_PWM1_PIN, power_pwm_values[1]);
+#endif
 }
 
 void power_adc_setup() 

@@ -141,9 +141,14 @@ bool renderer_write_reg(uint8_t addr, uint8_t data)
 
 uint8_t renderer_poll_volume(void)
 {
-    uint8_t vol = 0;
-    renderer_read_reg(RENDERER_REG_VOL, &vol);
-    return vol;
+    uint8_t vol1 = 0, vol2 = 0; 
+    renderer_read_reg(RENDERER_REG_VOL, &vol1);
+    renderer_read_reg(RENDERER_REG_VOL, &vol2);
+    while (vol1 != vol2) {   // If the two reads don't match, the value was changing during the read → try again
+        vol1 = vol2;
+        renderer_read_reg(RENDERER_REG_VOL, &vol2);
+    }
+    return vol1;
 }
 
 // Read all three interrupt flag registers and return them packed into a uint32_t

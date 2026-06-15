@@ -149,13 +149,13 @@ int main()
             {
                 printf("Renderer INT asserted\n");
                 uint32_t interrupts = renderer_read_interrupts();
+                renderer_clear_interrupts();        
                 if (interrupts & RENDERER_IF0_VOL) {
                     uint8_t vol = renderer_poll_volume();
                     if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
                     else                      volume_set(vol, 100, 80);  
                     printf("Renderer volume: %d\n", vol);
                 }
-                renderer_clear_interrupts();        
                 next_renderer_poll += + 10000000;
             }
             else next_renderer_poll = now_ns() + 1000000;
