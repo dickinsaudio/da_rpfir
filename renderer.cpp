@@ -30,6 +30,7 @@
 
 #include "renderer.hpp"
 #include "pico/stdlib.h"
+#include <stdio.h>
 
 //---------------------------------------------------------------------------
 // Protocol notes (datasheet section 4.1)
@@ -48,7 +49,7 @@
 //---------------------------------------------------------------------------
 
 #define RETRY_MAX   16          // retries before giving up on a single word
-#define CS_GAP_US   50           // t(SSD) min is 7µs; add 1µs margin
+#define CS_GAP_US   200         // t(SSD) min is 7µs; add 1µs margin
 
 static inline void cs_select()   { gpio_put(RENDERER_PIN_CS, 0); }
 static inline void cs_deselect() { gpio_put(RENDERER_PIN_CS, 1); }
@@ -145,6 +146,7 @@ uint8_t renderer_poll_volume(void)
     renderer_read_reg(RENDERER_REG_VOL, &vol1);
     renderer_read_reg(RENDERER_REG_VOL, &vol2);
     while (vol1 != vol2) {   // If the two reads don't match, the value was changing during the read → try again
+        printf("Renderer volume changed during read: %02X → %02X\n", vol1, vol2);
         vol1 = vol2;
         renderer_read_reg(RENDERER_REG_VOL, &vol2);
     }

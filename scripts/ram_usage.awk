@@ -2,17 +2,55 @@
 # RAM Usage Analysis Script for RP2350
 # Parses linker map file to show memory utilization
 
-/^\.data\s+0x/ {
-    data_addr = strtonum($2);
-    data_size = strtonum($3);
+/^\.data[[:space:]]+0x/ {
+    addr = parse_num($2);
+    size = parse_num($3);
+
+    # Keep the final linked .data section in SRAM, not per-object placeholders.
+    if (addr >= 0x20000000 && size > 0) {
+        data_addr = addr;
+        data_size = size;
+    }
 }
 
-/^\.bss\s+0x/ {
-    bss_addr = strtonum($2);
-    bss_size = strtonum($3);
+/^\.bss[[:space:]]+0x/ {
+    addr = parse_num($2);
+    size = parse_num($3);
+
+    # Keep the final linked .bss section in SRAM, not per-object placeholders.
+    if (addr >= 0x20000000 && size > 0) {
+        bss_addr = addr;
+        bss_size = size;
+    }
+}
+
+function parse_num(s,    i, c, v, n) {
+    # Portable parser: supports both decimal and 0x-prefixed hex values.
+    if (s ~ /^0[xX][0-9a-fA-F]+$/) {
+        s = substr(s, 3);
+        n = 0;
+        for (i = 1; i <= length(s); i++) {
+            c = substr(s, i, 1);
+            if (c >= "0" && c <= "9") {
+                v = c + 0;
+            } else {
+                c = tolower(c);
+                v = index("abcdef", c);
+                if (v == 0) return 0;
+                v += 9;
+            }
+            n = (n * 16) + v;
+        }
+        return n;
+    }
+
+    return s + 0;
 }
 
 END {
+    if (data_size == "") data_size = 0;
+    if (bss_size == "") bss_size = 0;
+
     total = data_size + bss_size;
     rp2350_ram = 520 * 1024;
     used_pct = (total / rp2350_ram) * 100;

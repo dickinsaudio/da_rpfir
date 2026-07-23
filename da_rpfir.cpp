@@ -31,6 +31,9 @@ void setup_ct7302()
 
     CT73xxSetRegisterValue(0x05, 0x09);          // Set SRC to 192kHz
 
+    CT73xxSetInputSource(SOURCE_SPDIF0);          // Set input source to SPDIF0
+
+
 #if 0
     printf("CT7302 registers:\n");
     for (int addr = 0; addr <= 0xFF; addr++)
@@ -147,14 +150,22 @@ int main()
         {   
             if (renderer_int_asserted()) 
             {
-                printf("Renderer INT asserted\n");
                 uint32_t interrupts = renderer_read_interrupts();
                 renderer_clear_interrupts();        
+                printf("Renderer INT asserted  0x%08X\n", interrupts);
+                if (interrupts & RENDERER_IF1_FIRM) {
+                    printf("Setting renderer control registers for plugins and features\n");
+                    // Set some initial settings for the renderer - plugins of volume and status
+                    renderer_write_reg(RENDERER_REG_ROON, 0x2A);        // Enable plugins for volume and status
+                    renderer_write_reg(RENDERER_REG_FEATURES, 0x03);    // Enable volume and status features
+                    renderer_write_reg(RENDERER_REG_STATUS, 0x03);      // Tell that we are ready for audio
+
+                }
                 if (interrupts & RENDERER_IF0_VOL) {
                     uint8_t vol = renderer_poll_volume();
                     if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
                     else                      volume_set(vol, 100, 80);  
-                    printf("Renderer volume: %d\n", vol);
+                    printf("Renderer volume: %02X\n", vol);
                 }
                 next_renderer_poll += + 10000000;
             }
@@ -163,9 +174,19 @@ int main()
 
         if (time > next_status_dump) 
         {
-            extern uint16_t power_pwm_values[2];
-            printf("ADC: %.3f  %.3f    PWM: %d  %d\n", power_read_voltage(0), power_read_voltage(1), power_pwm_values[0], power_pwm_values[1]);
-            next_status_dump += 100000000;            
+            static int control, status;
+            uint8_t c,s;
+            renderer_read_reg(RENDERER_REG_CONTROL, (uint8_t*)&c);
+            renderer_read_reg(RENDERER_REG_STATUS, (uint8_t*)&s);
+            if (c != control || s != status) {
+                control = c;
+                status  = s;
+                printf("ROON CONTROL  %02X     STATUS %02X\n", control, status);
+            }
+            printf("Status %02X Control %02X  Volume %02X\n", status, control, renderer_poll_volume());
+            //extern uint16_t power_pwm_values[2];
+            //printf("ADC: %.3f  %.3f    PWM: %d  %d\n", power_read_voltage(0), power_read_voltage(1), power_pwm_values[0], power_pwm_values[1]);
+            next_status_dump += 2000000000;            
         }
     }
 #endif
