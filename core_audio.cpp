@@ -3,8 +3,6 @@
 #include "da_rpfir.hpp"
 #include "i2s.pio.h"
 #include "arm_math.h"
-#include "volume.hpp"
-
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // I2S AUDIO SETUP
@@ -180,7 +178,7 @@ void i2s_setup()
 
 #define T_FFT       I2S_BLOCK       // The stride of time samples between each FFT
 #define N_FFT       T_FFT           // The size of the complex FFT we will be using
-#define M_FIR       4               // The number of blocks to use for filtering
+#define M_FIR       2               // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
 float32_t   buf_x[CHANS][2*N_FFT];  // TODO Since this is in FIR buffer, we can avoid a slide move and also use buf_y                 
@@ -287,7 +285,7 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 #endif
     for (int n = 0; n < T_FFT; n++)
     {
-        const float gain = volume_update();
+        const float gain = 1.0;
         float32_t val = *buf1++ * gain;
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;

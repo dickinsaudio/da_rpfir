@@ -12,8 +12,19 @@ set(WIZNET_CHIP W5500)
 add_definitions(-D_WIZCHIP_=W5500)
 add_definitions(-DDEVICE_BOARD_NAME=W5500_EVB_PICO2)
 add_definitions(-DPICO_DEF)
-add_definitions(-DPICO_DEFAULT_UART_TX_PIN=12)
-add_definitions(-DPICO_DEFAULT_UART_RX_PIN=13)     
+
+
+add_definitions(-DPICO_BUTTON=14)
+
+add_definitions(-DPICO_DEFAULT_UART=1)
+add_definitions(-DPICO_DEFAULT_UART_TX_PIN=4)   # Overlapping use of these pins
+add_definitions(-DPICO_DEFAULT_UART_RX_PIN=5)   # Use the UART in debug mode  
+
+add_definitions(-DPICO_I2C_SDA_PIN=22)
+add_definitions(-DPICO_I2C_SCL_PIN=23)
+
+add_definitions(-DPICO_RGB_PIN=15)
+
 
 
 add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog - frees 96KB for M_FIR=3 + SRAM twiddle tables
@@ -155,25 +166,23 @@ add_executable(da_rpfir)
 target_compile_definitions(da_rpfir PRIVATE PFB_AES_KEY="${PFB_AES_KEY}")
 
 pico_generate_pio_header(da_rpfir ${CMAKE_CURRENT_LIST_DIR}/i2s.pio)
+pico_generate_pio_header(da_rpfir ${CMAKE_CURRENT_LIST_DIR}/peripherals.pio)
 
 #Target_sources(da_rpfir  PRIVATE wizchip_http_server.c)
 
                             
 Target_sources(da_rpfir   PRIVATE 
+                            a2b_amp.cpp
                             da_rpfir.cpp 
                             core_audio.cpp 
                             core_web.cpp 
                             w5500_udp.cpp
                             flash.cpp
-                            volume.cpp
-                            power.cpp
                             daes67_lite/histogram.cpp 
                             daes67_lite/log.cpp 
                             daes67_lite/http_server.cpp
                             pwm.c
-                            CT7302.c
                             peripherals.cpp
-                            renderer.cpp
                             )
 
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)

@@ -26,6 +26,7 @@
  *******************************************************************/
 
 #include "da_rpfir.hpp"
+#include "a2b_amp.hpp"
 #include <vector>
 #include <algorithm> 
 #include <numeric>
@@ -74,6 +75,7 @@ static char __in_flash() page_prefix[] =
     "<div class=\"menu\">"
         "<button class=\"mbut\" onclick=\"location.href='overview.html'\">OVERVIEW</button>"
         "<button class=\"mbut\" onclick=\"location.href='statistics.html'\">STATISTICS</button>"
+        "<button class=\"mbut\" onclick=\"location.href='a2b_amp.html'\">A2B AMP</button>"
         "<button class=\"mbut\" onclick=\"location.href='system.html'\">SYSTEM</button>"
         "<button class=\"mbut\" onclick=\"bootloader()\">USB BOOT</button>"
     "</div>"
@@ -186,6 +188,7 @@ static char __in_flash() page_css[] =
     ".str { font-size: larger; line-height: 1.1; }"
     ".stat { font-size: small; line-height: 0.9; }"
     ".info { font-size: larger; line-height: 1.0; }"
+    ".livebox { white-space: pre-line; font-size: 1.1rem; background: #fff; border-radius: 6px; padding: 12px; width: fit-content; min-width: 16rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }"
     
     "@media screen and (max-width: 900px) {"
     ".stat { font-size: xx-small; }"
@@ -297,6 +300,37 @@ const char *cgi_statistics(const char* name, const char* arg, int len, char *buf
     return buf;
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// A2B AMP PAGE
+//
+
+const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
+{
+    if (!name || !arg || len==0 || !buf) return "";
+    char *p = buf;
+    ADD("<title>%s</title>",flash->name);
+    ADD("<h2>A2B AMP</h2>");
+    ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
+    ADD("<script>");
+    ADD("function updateA2B() {");
+    ADD("fetch('get?a2b')");
+    ADD(".then(response => response.json())");
+    ADD(".then(data => {");
+    ADD("document.getElementById('a2b_text').innerText = ");
+    ADD("'A2B Bus Voltage: ' + data.a2b_bus_voltage.toFixed(2) + ' V\\n\\n' +");
+    ADD("'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V\\n\\n' +");
+    ADD("'A2B Amp Current: ' + data.a2b_amp_current.toFixed(0) + ' mA';");
+    ADD("setTimeout(updateA2B, 500);");
+    ADD("})");
+    ADD(".catch(err => { setTimeout(updateA2B, 2000); });");
+    ADD("}");
+    ADD("updateA2B();");
+    ADD("</script>");
+    ADD("</body></html>");
+    return buf;
+}
+
 int chunk_statistics(int id, int len, char* buf)
 {
     static int32_t step[HTTP_SOCKETS] = {};
@@ -387,6 +421,12 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         channels = (int)(sizeof(in_meters)/sizeof(int32_t));
         for (int i=0; i<channels; i++) ADD("\"I%d\":%d,",i,in_meters[i]);
     }
+    if (all || strstr(arg,"a2b"))
+    {
+        ADD("\"a2b_bus_voltage\":%.2f,", a2b_bus_voltage());
+        ADD("\"a2b_amp_voltage\":%.2f,", a2b_amp_voltage());
+        ADD("\"a2b_amp_current\":%.2f,", a2b_amp_current());
+    }
 
     p[-1]='}';
     return buf;
@@ -421,6 +461,7 @@ void start_web(void)
 
     server.add_cgi("index.html",     cgi_overview);
     server.add_cgi("overview.html",  cgi_overview);
+    server.add_cgi("a2b_amp.html",   cgi_a2b_amp);
     server.add_cgi("statistics.html",cgi_statistics);
     server.add_cgi("system.html",    cgi_sys);
 
