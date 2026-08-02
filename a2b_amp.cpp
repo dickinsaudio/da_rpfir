@@ -6,6 +6,7 @@
 #define A2B_BUS_ADC_GPIO 26
 #define A2B_AMP_ADC_GPIO 27
 #define A2B_CURRENT_ADC_GPIO 28
+#define A2B_22V_EN_GPIO 24
 
 #define A2B_BUS_ADC_SCALE ((200.0F + 10.0F)/10.0F)
 #define A2B_AMP_ADC_SCALE ((200.0F + 10.0F)/10.0F)
@@ -38,7 +39,24 @@ void a2b_amp_init()
     adc_gpio_init(A2B_BUS_ADC_GPIO);
     adc_gpio_init(A2B_AMP_ADC_GPIO);
     adc_gpio_init(A2B_CURRENT_ADC_GPIO);
+
+    gpio_init(A2B_22V_EN_GPIO);
+    gpio_set_dir(A2B_22V_EN_GPIO, GPIO_OUT);
+    gpio_put(A2B_22V_EN_GPIO, 0);
+
     s_a2b_adc_initialized = true;
+}
+
+void a2b_22v_enable_set(bool enabled)
+{
+    a2b_amp_init();
+    gpio_put(A2B_22V_EN_GPIO, enabled ? 1 : 0);
+}
+
+bool a2b_22v_enable_get()
+{
+    a2b_amp_init();
+    return gpio_get(A2B_22V_EN_GPIO) != 0;
 }
 
 float a2b_bus_voltage()

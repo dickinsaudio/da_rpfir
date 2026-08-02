@@ -311,6 +311,8 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     char *p = buf;
     ADD("<title>%s</title>",flash->name);
     ADD("<h2>A2B AMP</h2>");
+    ADD("<button class=\"but\" onclick=\"set('a2b_22v_on')\">22V ON</button>");
+    ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button><br><br>");
     ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
     ADD("<script>");
     ADD("function updateA2B() {");
@@ -318,6 +320,7 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD(".then(response => response.json())");
     ADD(".then(data => {");
     ADD("document.getElementById('a2b_text').innerText = ");
+    ADD("'22V Enable GPIO24: ' + (data.a2b_22v ? 'ON' : 'OFF') + '\\n\\n' +");
     ADD("'A2B Bus Voltage: ' + data.a2b_bus_voltage.toFixed(2) + ' V\\n\\n' +");
     ADD("'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V\\n\\n' +");
     ADD("'A2B Amp Current: ' + data.a2b_amp_current.toFixed(0) + ' mA';");
@@ -390,6 +393,14 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
         core_stall[0].clear();
         core_stall[1].clear();
     }
+    if (strstr(arg,"a2b_22v_on"))
+    {
+        a2b_22v_enable_set(true);
+    }
+    if (strstr(arg,"a2b_22v_off"))
+    {
+        a2b_22v_enable_set(false);
+    }
 
     if (strstr(arg,"reboot"))
     {   
@@ -426,6 +437,7 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         ADD("\"a2b_bus_voltage\":%.2f,", a2b_bus_voltage());
         ADD("\"a2b_amp_voltage\":%.2f,", a2b_amp_voltage());
         ADD("\"a2b_amp_current\":%.2f,", a2b_amp_current());
+        ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
     }
 
     p[-1]='}';
