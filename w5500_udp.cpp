@@ -133,32 +133,48 @@ void w5500_startup(void)
 }
 
 extern "C" {
-    void reset_DHCP_timeout(void);
+    void DHCP_time_handler(void);
 };
+
+static bool w5500_dhcp_timer(struct repeating_timer *timer)
+{
+    (void)timer;
+    DHCP_time_handler();
+    return true;
+}
 
 void w5500_dhcp(void)
 {
     uint8_t buffer[768] __attribute__((aligned(4))) = {};   // OK on stack as only used pre startup
     reg_dhcp_cbfunc(0, 0, 0);           // Use default callbacks that will set the IP if we get one
-    int wait;                           // Run DHCP to get or renew the IP address
-    for (int tries=0; tries<5; tries++)
+    struct repeating_timer timer;
+    bool timer_started = add_repeating_timer_ms(1000, w5500_dhcp_timer, 0, &timer);
+    uint8_t status = DHCP_FAILED;
+    constexpr int attempts = 3;
+    constexpr int polls_per_attempt = 300;
+
+    if (!timer_started) Notice("DHCP TIMER FAILED TO START");
+
+    for (int tries=0; timer_started && tries<attempts; tries++)
     {
-        Notice("DHCP ATTEMPT %2d / %2d   ",tries+1,10);
+        Notice("DHCP ATTEMPT %2d / %2d   ",tries+1,attempts);
         DHCP_init(1, buffer);               // Use socket 1
-        for (wait=13; wait>0; wait--) 
+        for (int poll=0; poll<polls_per_attempt; poll++)
         {
-            if (DHCP_run() == DHCP_IP_LEASED) break;
+            status = DHCP_run();
+            if (status == DHCP_IP_LEASED || status == DHCP_FAILED) break;
             sleep_ms(100);
         }
         Notice("");
         DHCP_stop();
-        if (wait>0) break;
+        if (status == DHCP_IP_LEASED) break;
     }
+    if (timer_started) cancel_repeating_timer(&timer);
 
-    if (wait==0)                              // And if that fails, use the default zero config using the unique id
+    if (status != DHCP_IP_LEASED)             // And if that fails, use the default zero config using the unique id
     {
         Notice("DHCP FAILED USING DEFAULT ZERO CONF IP");
-        flash->net_info.ip[0]  = 169;           flash->net_info.ip[1]  = 254;       flash->net_info.ip[2]  = 1;                 flash->net_info.ip[3]  = 1;       
+        flash->net_info.ip[0]  = 10;           flash->net_info.ip[1]  = 0;       flash->net_info.ip[2]  = 0;                 flash->net_info.ip[3]  = 79;       
         flash->net_info.sn[0]  = 255;           flash->net_info.sn[1]  = 255;       flash->net_info.sn[2]  = 0;                 flash->net_info.sn[3]  = 0;
         flash->net_info.gw[0]  = 0;             flash->net_info.gw[1]  = 0;         flash->net_info.gw[2]  = 0;                 flash->net_info.gw[3]  = 0;
         flash->net_info.dns[0] = 8;             flash->net_info.dns[1] = 8;         flash->net_info.dns[2] = 8;                 flash->net_info.dns[3] = 8;
@@ -172,7 +188,7 @@ void w5500_dhcp(void)
     ctlnetwork(CN_GET_NETINFO, (void *)&flash->net_info);
     
     // Not sure why, but this is not always correct
-    //if (wait>0) flash->net_info.dhcp = NETINFO_DHCP; else flash->net_info.dhcp = NETINFO_STATIC;
+    //if (status == DHCP_IP_LEASED) flash->net_info.dhcp = NETINFO_DHCP; else flash->net_info.dhcp = NETINFO_STATIC;
     
     //void flash_save(void);
     //flash_save();
