@@ -32,6 +32,7 @@
 #include <pico/bootrom.h>
 #include "hardware/adc.h"
 #include <board_list.h>
+#include "sgr_renderer.hpp"
 
 #ifndef BANNER
 #define BANNER file_dickinsaudio_png
@@ -75,6 +76,7 @@ static char __in_flash() page_prefix[] =
         "<button class=\"mbut\" onclick=\"location.href='overview.html'\">OVERVIEW</button>"
         "<button class=\"mbut\" onclick=\"location.href='statistics.html'\">STATISTICS</button>"
         "<button class=\"mbut\" onclick=\"location.href='system.html'\">SYSTEM</button>"
+        "<button class=\"mbut\" onclick=\"location.href='sgr_renderer.html'\">SGR RENDERER</button>"
         "<button class=\"mbut\" onclick=\"bootloader()\">USB BOOT</button>"
     "</div>"
     "<progress id=\"I0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
@@ -426,6 +428,8 @@ void start_web(void)
     server.add_cgi("overview.html",  cgi_overview);
     server.add_cgi("statistics.html",cgi_statistics);
     server.add_cgi("system.html",    cgi_sys);
+    server.add_cgi("sgr_renderer.html", cgi_sgr_renderer);
+    server.add_cgi("sgr_renderer_status", cgi_sgr_renderer_status, false, TYPE_TEXT);
 
     server.add_chunked("statistics.txt", chunk_statistics,TYPE_TEXT,true);
     server.add_chunked("cpu", chunk_cpu,TYPE_TEXT,true);

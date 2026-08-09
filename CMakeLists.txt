@@ -174,6 +174,7 @@ Target_sources(da_rpfir   PRIVATE
                             da_rpfir.cpp 
                             core_audio.cpp 
                             core_web.cpp 
+                            sgr_renderer.cpp
                             w5500_udp.cpp
                             flash.cpp
                             daes67_lite/histogram.cpp 

@@ -2,6 +2,7 @@
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
 #include "peripherals.hpp"
+#include "sgr_renderer.hpp"
 #include "hardware/adc.h"
 #include "hardware/pwm.h"
 
@@ -25,6 +26,7 @@ int main()
 
     gpio_set_dir_all_bits(0x00000000);                          // GPIOS are all inputs
     for (int n=0; n<32; n++) gpio_set_pulls(n, false,false);    // No pullups or pulldowns
+    sgr_renderer_init();
 
     stdio_init_all();
     sleep_ms(10);
