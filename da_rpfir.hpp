@@ -140,11 +140,34 @@ extern Histogram i2s_dma_execution;
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];
 
-#define     I2S_IN_BCLK_PIN     0
-#define     I2S_IN_LRCLK_PIN    1
-#define     I2S_IN_SD_PIN       2
-#define     I2S_OUT_BCLK_PIN    14      // Just hide these for now
-#define     I2S_OUT_LRCLK_PIN   15
-#define     I2S_OUT_SD_PIN      8
+#define     MCLK_IN_PIN         0
+
+#define     CLK_22M_IN_PIN      1
+#define     CLK_22M_EN_PIN      2
+#define     CLK_24M_IN_PIN      3
+#define     CLK_24M_EN_PIN      4
+
+#define     DAC_I2S_OUT_BCLK_PIN    9
+#define     DAC_I2S_OUT_LRCLK_PIN   10
+#define     DAC_I2S_OUT_SD0_PIN     7
+#define     DAC_I2S_OUT_SD1_PIN     8
+#define     DAC_DSD_OUT_PIN         12
+#define     DAC_I2S_ENABLE_PIN      6
+#define     DAC_LOCK_PIN            11
+
+#define     MOD_I2S_IN_BCLK_PIN     23
+#define     MOD_I2S_IN_LRCLK_PIN    24
+#define     MOD_I2S_IN_SD0_PIN      25
+#define     MOD_I2S_IN_SD1_PIN      22
+
+#define     MOD_RATE0_PIN           27
+#define     MOD_RATE1_PIN           26
+#define     MOD_44_48_PIN           5
+#define     MOD_DSD_PCM_PIN         28
+#define     MOD_MUTE_PIN            13
+#define     MOD_RESET_PIN           29
+
+#define     GPIO14_NC               14      // This could be UART0 TX  or I2C1 SDA
+#define     GPIO15_NC               15      // This could be UART0 RX  or I2C1 SCL
 
 

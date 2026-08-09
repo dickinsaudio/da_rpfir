@@ -1,7 +1,6 @@
 #include "da_rpfir.hpp"
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
-#include "pwm.h"
 #include "peripherals.hpp"
 #include "hardware/adc.h"
 #include "hardware/pwm.h"

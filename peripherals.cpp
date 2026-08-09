@@ -44,10 +44,8 @@ void send_rgb(uint8_t r, uint8_t g, uint8_t b)
 void send_rgb(uint8_t r, uint8_t g, uint8_t b) {};
 #endif
 
+#ifdef PICO_I2C_SDA_PIN
 
-
-//#define PICO_I2C_SCL_PIN 23
-//#define PICO_I2C_SDA_PIN 22
 #define I2C_ID i2c1
 #define I2C_SPEED 100000 //100KHz
 
@@ -100,6 +98,13 @@ void i2c_scan(uint8_t status)
     }
     printf("\n");
 }
+
+#else
+void i2c_initialize() {};
+uint8_t i2c_read(uint8_t addr, uint8_t reg) { return 0; }
+void i2c_write(uint8_t addr, uint8_t reg, uint8_t data) {};
+void i2c_scan(uint8_t status) {};
+#endif
 
 #ifdef __cplusplus
 }

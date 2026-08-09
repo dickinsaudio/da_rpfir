@@ -85,6 +85,7 @@ void i2s_setup()
 {
     Notice("SETTING UP I2S DMA");
     
+    /*
     pio_clear_instruction_memory(I2S_PIO);
     uint offset = pio_add_program (I2S_PIO  , &i2s_follower_out_program);
     i2s_follower_out_init(I2S_PIO, I2S_OUT_SM, offset, I2S_IN_LRCLK_PIN, I2S_OUT_SD_PIN, I2S_OUT_BCLK_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
@@ -165,6 +166,7 @@ void i2s_setup()
 
     pio_enable_sm_mask_in_sync(I2S_PIO, (1 << I2S_OUT_SM) | (1 << I2S_IN_SM) );        // Start the IS2
 
+    */
     //for (int n=0; n<I2S_BLOCK*I2S_CHANS; n++) i2s_out[n] = 0x40000000;
     //for (int n=0; n<I2S_BLOCK*I2S_CHANS; n++) i2s_out[n+I2S_BLOCK*I2S_CHANS] = -int32_t(0x40000000);
 }

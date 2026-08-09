@@ -14,16 +14,14 @@ add_definitions(-DDEVICE_BOARD_NAME=W5500_EVB_PICO2)
 add_definitions(-DPICO_DEF)
 
 
-add_definitions(-DPICO_BUTTON=14)
+#add_definitions(-DPICO_BUTTON=14)
+#add_definitions(-DPICO_DEFAULT_UART=1)
+#add_definitions(-DPICO_DEFAULT_UART_TX_PIN=14)   # Overlapping use of these pins
+#add_definitions(-DPICO_DEFAULT_UART_RX_PIN=15)   # Use the UART in debug mode  
 
-add_definitions(-DPICO_DEFAULT_UART=1)
-add_definitions(-DPICO_DEFAULT_UART_TX_PIN=4)   # Overlapping use of these pins
-add_definitions(-DPICO_DEFAULT_UART_RX_PIN=5)   # Use the UART in debug mode  
-
-add_definitions(-DPICO_I2C_SDA_PIN=22)
-add_definitions(-DPICO_I2C_SCL_PIN=23)
-
-add_definitions(-DPICO_RGB_PIN=15)
+#add_definitions(-DPICO_I2C_SDA_PIN=22)
+#add_definitions(-DPICO_I2C_SCL_PIN=23)
+#add_definitions(-DPICO_RGB_PIN=15)
 
 
 
@@ -114,7 +112,7 @@ endif()
 set(ENABLE_PROGRAMS OFF CACHE BOOL "Build mbedtls programs")
 set(ENABLE_TESTING OFF CACHE BOOL "Build mbedtls testing")
 set(MBEDTLS_CONFIG_FILE "${PORT_DIR}/mbedtls/inc/ssl_config.h")
-add_definitions(-DMBEDTLS_CONFIG_FILE="${PORT_DIR}/mbedtls/inc/ssl_config.h")
+set(MBEDTLS_CONFIG_FILE "${PORT_DIR}/mbedtls/inc/ssl_config.h" CACHE FILEPATH "Mbed TLS config file" FORCE)
 add_definitions(-DSET_TRUSTED_CERT_IN_SAMPLES)
 add_definitions(-DPICO_USE_FASTEST_SUPPORTED_CLOCK=1)
 
@@ -135,6 +133,7 @@ add_link_options(-Wl,--gc-sections)
 # Add libraries in subdirectories
 add_subdirectory(${CMAKE_SOURCE_DIR}/WIZnet-PICO-C/libraries)
 add_subdirectory(${MBEDTLS_DIR})
+target_compile_options(mbedcrypto PRIVATE $<$<CONFIG:Debug>:-O1>)
 add_subdirectory(${PORT_DIR})
 
 
@@ -172,7 +171,6 @@ pico_generate_pio_header(da_rpfir ${CMAKE_CURRENT_LIST_DIR}/peripherals.pio)
 
                             
 Target_sources(da_rpfir   PRIVATE 
-                            a2b_amp.cpp
                             da_rpfir.cpp 
                             core_audio.cpp 
                             core_web.cpp 
@@ -181,7 +179,6 @@ Target_sources(da_rpfir   PRIVATE
                             daes67_lite/histogram.cpp 
                             daes67_lite/log.cpp 
                             daes67_lite/http_server.cpp
-                            pwm.c
                             peripherals.cpp
                             )
 
@@ -193,7 +190,7 @@ pico_set_program_version(da_rpfir "1.0.1")
 
 # no_flash means the target is to run from RAM
 # pico_set_binary_type(da_rpfir no_flash)
-pico_enable_stdio_uart(da_rpfir  1)
+pico_enable_stdio_uart(da_rpfir  0)
 pico_enable_stdio_usb(da_rpfir 1)
 
 # Add any user requested libraries
