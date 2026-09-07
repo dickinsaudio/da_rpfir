@@ -173,6 +173,7 @@ pico_generate_pio_header(da_rpfir ${CMAKE_CURRENT_LIST_DIR}/peripherals.pio)
                             
 Target_sources(da_rpfir   PRIVATE 
                             a2b_amp.cpp
+                            max98415.cpp
                             da_rpfir.cpp 
                             core_audio.cpp 
                             core_web.cpp 

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "peripherals.hpp"
 #include "hardware/i2c.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
@@ -66,13 +67,38 @@ void i2c_initialize()
 
 uint8_t i2c_read(uint8_t addr, uint8_t reg)
 {
-    if (!i2c_initialized) i2c_initialize();
     uint8_t ret=0;
-    absolute_time_t t = make_timeout_time_ms(10);
-    i2c_write_blocking_until(I2C_ID, addr, &reg, 1, true,  t);
-    t = make_timeout_time_ms(10);
-    i2c_read_blocking_until(I2C_ID,  addr, &ret, 1, false, t);
+    i2c_read_register(addr, reg, &ret);
     return ret;
+}
+
+bool i2c_read_register(uint8_t addr, uint8_t reg, uint8_t *data)
+{
+    if (!data) return false;
+    if (!i2c_initialized) i2c_initialize();
+
+    absolute_time_t t = make_timeout_time_ms(10);
+    if (i2c_write_blocking_until(I2C_ID, addr, &reg, 1, true, t) != 1)
+    {
+        return false;
+    }
+    t = make_timeout_time_ms(10);
+    return i2c_read_blocking_until(I2C_ID, addr, data, 1, false, t) == 1;
+}
+
+bool i2c_read_register16(uint8_t addr, uint16_t reg, uint8_t *data)
+{
+    if (!data) return false;
+    if (!i2c_initialized) i2c_initialize();
+
+    uint8_t address[2] = {(uint8_t)(reg >> 8), (uint8_t)reg};
+    absolute_time_t timeout = make_timeout_time_ms(10);
+    if (i2c_write_blocking_until(I2C_ID, addr, address, sizeof(address), true, timeout) != sizeof(address))
+    {
+        return false;
+    }
+    timeout = make_timeout_time_ms(10);
+    return i2c_read_blocking_until(I2C_ID, addr, data, 1, false, timeout) == 1;
 }
 
 void i2c_write(uint8_t addr, uint8_t reg, uint8_t data)
@@ -83,22 +109,22 @@ void i2c_write(uint8_t addr, uint8_t reg, uint8_t data)
     i2c_write_blocking_until(I2C_ID, addr, msg, 2, false, t);
 }
 
-void i2c_scan(uint8_t status)
+int i2c_scan(uint8_t *addresses, int max_addresses)
 {
-    printf("I2C Bus Scan\n");
-    printf("   00  01  02  03  04  05  06  07  08  09  0A  0B  0C  0D  0E  0F\n");
+    if (!addresses || max_addresses <= 0) return 0;
+    if (!i2c_initialized) i2c_initialize();
 
-    for (int addr = 0; addr < 128; ++addr)
+    int count = 0;
+    for (uint8_t addr = 0x08; addr <= 0x77 && count < max_addresses; ++addr)
     {
-        if (addr % 16 == 0)
+        uint8_t value;
+        absolute_time_t timeout = make_timeout_time_ms(5);
+        if (i2c_read_blocking_until(I2C_ID, addr, &value, 1, false, timeout) >= 0)
         {
-            printf("%02x ", addr);
+            addresses[count++] = addr;
         }
-        uint8_t val = i2c_read(addr, status);
-        printf("%02x",val);
-        printf(addr % 16 == 15 ? "\n" : "  ");
     }
-    printf("\n");
+    return count;
 }
 
 #ifdef __cplusplus

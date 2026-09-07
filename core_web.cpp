@@ -27,6 +27,8 @@
 
 #include "da_rpfir.hpp"
 #include "a2b_amp.hpp"
+#include "max98415.hpp"
+#include "peripherals.hpp"
 #include <vector>
 #include <algorithm> 
 #include <numeric>
@@ -66,7 +68,7 @@ static char __in_flash() page_prefix[] =
         "<meta charset=\"UTF-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, shrink-to-fit=yes, initial-scale=1.0\">"
         "<style> html { overflow-y : scroll; } </style>"
-        "<link rel=\"stylesheet\" href=\"styles.css\">"
+        "<link rel=\"stylesheet\" href=\"styles.css?v=2\">"
         "<script src=\"scripts.js\"></script>"
     "</head><body>"
     "<header>"
@@ -84,7 +86,7 @@ static char __in_flash() page_prefix[] =
     "<br>"
     "<progress id=\"O0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
     "<progress id=\"O1\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
-    "<script>updateMeters();</script>";
+    ;
 
 
 static char __in_flash() page_scripts[] = 
@@ -189,6 +191,7 @@ static char __in_flash() page_css[] =
     ".stat { font-size: small; line-height: 0.9; }"
     ".info { font-size: larger; line-height: 1.0; }"
     ".livebox { white-space: pre-line; font-size: 1.1rem; background: #fff; border-radius: 6px; padding: 12px; width: fit-content; min-width: 16rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }"
+    ".registermap { display: block; white-space: pre; overflow-x: auto; width: auto; max-width: 100%; font-family: monospace; font-size: .85rem; line-height: 1.4rem; }"
     
     "@media screen and (max-width: 900px) {"
     ".stat { font-size: xx-small; }"
@@ -317,7 +320,31 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_low')\">ICTRL LOW</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_high')\">ICTRL HIGH</button><br><br>");
     ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
+    ADD("<button id=\"i2c_scan_button\" class=\"but\" onclick=\"scanI2C()\">I2C SCAN</button><br><br>");
+    ADD("<div id=\"i2c_scan_text\" class=\"livebox\">Press I2C SCAN to find devices.</div>");
+    ADD("<button id=\"max98415_dump_button\" class=\"but\" onclick=\"dumpMAX98415()\">MAX98415 DUMP</button><br><br>");
+    ADD("<div id=\"max98415_dump_text\" class=\"livebox registermap\">Press MAX98415 DUMP to read registers at 0x39.</div>");
     ADD("<script>");
+    ADD("function scanI2C() {");
+    ADD("const button = document.getElementById('i2c_scan_button');");
+    ADD("const output = document.getElementById('i2c_scan_text');");
+    ADD("button.disabled = true; output.innerText = 'Scanning...';");
+    ADD("fetch('get?i2c_scan')");
+    ADD(".then(response => response.json())");
+    ADD(".then(data => { output.innerText = data.i2c_addresses.length ? 'Devices: ' + data.i2c_addresses.join(', ') : 'No I2C devices found.'; })");
+    ADD(".catch(err => { output.innerText = 'I2C scan failed.'; })");
+    ADD(".finally(() => { button.disabled = false; });");
+    ADD("}");
+    ADD("function dumpMAX98415() {");
+    ADD("const button = document.getElementById('max98415_dump_button');");
+    ADD("const output = document.getElementById('max98415_dump_text');");
+    ADD("button.disabled = true; output.innerText = 'Reading registers...';");
+    ADD("fetch('max98415.txt')");
+    ADD(".then(response => response.text())");
+    ADD(".then(data => { output.innerText = data; })");
+    ADD(".catch(err => { output.innerText = 'MAX98415 register dump failed.'; })");
+    ADD(".finally(() => { button.disabled = false; });");
+    ADD("}");
     ADD("function updateA2B() {");
     ADD("fetch('get?a2b')");
     ADD(".then(response => response.json())");
@@ -372,6 +399,31 @@ int chunk_cpu(int id, int len, char* buf)
         default: return 0;
     }
     return p-buf;
+}
+
+int chunk_max98415(int id, int len, char* buf)
+{
+    static size_t step[HTTP_SOCKETS] = {};
+    if (id<0 || id>=HTTP_SOCKETS) return 0;
+    if (len==0 || buf==0) { step[id]=0; return 0; };
+
+    if (step[id] == 0)
+    {
+        ++step[id];
+        return snprintf(buf, len,
+                        "MAX98415A REGISTER MAP - I2C ADDRESS 0x39\n"
+                        "ADDRESS VALUE REGISTER / BIT FIELD                    DECODED\n"
+                        "===============================================================================\n\n");
+    }
+
+    size_t index = step[id] - 1;
+    if (index >= max98415_register_count()) return 0;
+
+    bool read_ok = false;
+    int written = max98415_format_register(index, buf, (size_t)len, &read_ok);
+    if (read_ok) ++step[id];
+    else step[id] = max98415_register_count() + 1;
+    return written;
 }
 
 
@@ -456,7 +508,14 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
         ADD("\"a2b_ictrl\":%d,", a2b_ictrl_get());
     }
-
+    if (all || strstr(arg,"i2c_scan"))
+    {
+        uint8_t addresses[112];
+        int count = i2c_scan(addresses, sizeof(addresses));
+        ADD("\"i2c_addresses\":[");
+        for (int i=0; i<count; ++i) ADD("%s\"0x%02X\"", i ? "," : "", addresses[i]);
+        ADD("],");
+    }
     p[-1]='}';
     return buf;
 }
@@ -496,6 +555,7 @@ void start_web(void)
 
     server.add_chunked("statistics.txt", chunk_statistics,TYPE_TEXT,true);
     server.add_chunked("cpu", chunk_cpu,TYPE_TEXT,true);
+    server.add_chunked("max98415.txt", chunk_max98415,TYPE_TEXT,false);
 
     char ip[18];
     snprintf(ip,18," %d.%d.%d.%d",flash->net_info.ip[0],flash->net_info.ip[1],flash->net_info.ip[2],flash->net_info.ip[3]);
