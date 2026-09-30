@@ -90,6 +90,38 @@ bit1:
 .wrap
 
 
+.program i2s_bclk_slave_out
+;
+; Input pin 0 is BCLK, JMP pin is LRCLK, output pin is D0.
+; Data changes on A2B BCLK falling edges and is sampled on rising edges.
+
+public entry_point:
+wait_lr_high:
+    jmp pin wait_lr_low
+    jmp wait_lr_high
+wait_lr_low:
+    jmp pin wait_lr_low
+    set pins, 0
+    pull block
+    set x, 31
+.wrap_target
+channel_a:
+    wait 1 pin 0
+    wait 0 pin 0
+    out pins, 1
+    jmp x-- channel_a
+    pull block
+    set x, 31
+channel_b:
+    wait 1 pin 0
+    wait 0 pin 0
+    out pins, 1
+    jmp x-- channel_b
+    pull block
+    set x, 31
+.wrap
+
+
 .program i2s_follower_out
 ;
 ; Jmp pin is     LRCLK
@@ -208,6 +240,28 @@ static inline void i2s_follower_out_init(PIO pio, uint8_t sm, int offset, int lr
     pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
     pio_sm_set_pins_with_mask(pio, sm, 0, pin_mask);
     pio_sm_set_clkdiv_int_frac          (pio, sm, divN, divF);
+}
+
+static inline void i2s_bclk_slave_out_init(PIO pio, uint8_t sm, int offset, int bclk, int lrclk, int dout)
+{
+    pio_gpio_init(pio, bclk);
+    pio_gpio_init(pio, lrclk);
+    pio_gpio_init(pio, dout);
+
+    pio_sm_config sm_config = i2s_bclk_slave_out_program_get_default_config(offset);
+    sm_config_set_in_pins(&sm_config, bclk);
+    sm_config_set_jmp_pin(&sm_config, lrclk);
+    sm_config_set_out_pins(&sm_config, dout, 1);
+    sm_config_set_set_pins(&sm_config, dout, 1);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, sm, offset + i2s_bclk_slave_out_offset_entry_point, &sm_config);
+
+    uint32_t input_mask = (1u << bclk) | (1u << lrclk);
+    pio_sm_set_pindirs_with_mask(pio, sm, 0, input_mask);
+    uint32_t output_mask = 1u << dout;
+    pio_sm_set_pins_with_mask(pio, sm, 0, output_mask);
+    pio_sm_set_pindirs_with_mask(pio, sm, output_mask, output_mask);
 }
 
 static void i2s_mck_init(PIO pio, uint8_t sm, uint8_t offset, uint8_t mck_pin, int divN, int divF) {

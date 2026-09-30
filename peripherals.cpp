@@ -3,6 +3,7 @@
 #include "hardware/i2c.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
+#include "pico/mutex.h"
 #include "peripherals.pio.h"
 
 
@@ -50,18 +51,24 @@ void send_rgb(uint8_t r, uint8_t g, uint8_t b) {};
 //#define PICO_I2C_SCL_PIN 23
 //#define PICO_I2C_SDA_PIN 22
 #define I2C_ID i2c1
-#define I2C_SPEED 100000 //100KHz
+#define I2C_SPEED 50000
 
 static bool i2c_initialized; 
+auto_init_mutex(i2c_mutex);
 
 void i2c_initialize()
 {
-    i2c_initialized = true;
-    /* uint32_t baud = */i2c_init(I2C_ID, I2C_SPEED);
-    gpio_set_function(PICO_I2C_SCL_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(PICO_I2C_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_pull_up(PICO_I2C_SCL_PIN);
-    gpio_pull_up(PICO_I2C_SDA_PIN);
+    mutex_enter_blocking(&i2c_mutex);
+    if (!i2c_initialized)
+    {
+        i2c_initialized = true;
+        /* uint32_t baud = */i2c_init(I2C_ID, I2C_SPEED);
+        gpio_set_function(PICO_I2C_SCL_PIN, GPIO_FUNC_I2C);
+        gpio_set_function(PICO_I2C_SDA_PIN, GPIO_FUNC_I2C);
+        gpio_pull_up(PICO_I2C_SCL_PIN);
+        gpio_pull_up(PICO_I2C_SDA_PIN);
+    }
+    mutex_exit(&i2c_mutex);
 }
 
 
@@ -77,13 +84,17 @@ bool i2c_read_register(uint8_t addr, uint8_t reg, uint8_t *data)
     if (!data) return false;
     if (!i2c_initialized) i2c_initialize();
 
+    mutex_enter_blocking(&i2c_mutex);
     absolute_time_t t = make_timeout_time_ms(10);
     if (i2c_write_blocking_until(I2C_ID, addr, &reg, 1, true, t) != 1)
     {
+        mutex_exit(&i2c_mutex);
         return false;
     }
     t = make_timeout_time_ms(10);
-    return i2c_read_blocking_until(I2C_ID, addr, data, 1, false, t) == 1;
+    bool ok = i2c_read_blocking_until(I2C_ID, addr, data, 1, false, t) == 1;
+    mutex_exit(&i2c_mutex);
+    return ok;
 }
 
 bool i2c_read_register16(uint8_t addr, uint16_t reg, uint8_t *data)
@@ -92,13 +103,36 @@ bool i2c_read_register16(uint8_t addr, uint16_t reg, uint8_t *data)
     if (!i2c_initialized) i2c_initialize();
 
     uint8_t address[2] = {(uint8_t)(reg >> 8), (uint8_t)reg};
-    absolute_time_t timeout = make_timeout_time_ms(10);
-    if (i2c_write_blocking_until(I2C_ID, addr, address, sizeof(address), true, timeout) != sizeof(address))
+    bool ok = false;
+    mutex_enter_blocking(&i2c_mutex);
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
-        return false;
+        absolute_time_t timeout = make_timeout_time_ms(10);
+        if (i2c_write_blocking_until(I2C_ID, addr, address, sizeof(address), true, timeout) == sizeof(address))
+        {
+            timeout = make_timeout_time_ms(10);
+            if (i2c_read_blocking_until(I2C_ID, addr, data, 1, false, timeout) == 1)
+            {
+                ok = true;
+                break;
+            }
+        }
+        sleep_us(100);
     }
-    timeout = make_timeout_time_ms(10);
-    return i2c_read_blocking_until(I2C_ID, addr, data, 1, false, timeout) == 1;
+    mutex_exit(&i2c_mutex);
+    return ok;
+}
+
+bool i2c_write_register16(uint8_t addr, uint16_t reg, uint8_t data)
+{
+    if (!i2c_initialized) i2c_initialize();
+
+    uint8_t message[3] = {(uint8_t)(reg >> 8), (uint8_t)reg, data};
+    absolute_time_t timeout = make_timeout_time_ms(10);
+    mutex_enter_blocking(&i2c_mutex);
+    bool ok = i2c_write_blocking_until(I2C_ID, addr, message, sizeof(message), false, timeout) == sizeof(message);
+    mutex_exit(&i2c_mutex);
+    return ok;
 }
 
 void i2c_write(uint8_t addr, uint8_t reg, uint8_t data)
@@ -106,7 +140,9 @@ void i2c_write(uint8_t addr, uint8_t reg, uint8_t data)
     if (!i2c_initialized) i2c_initialize();
     uint8_t msg[2] = {reg, data};
     absolute_time_t t = make_timeout_time_ms(10);
+    mutex_enter_blocking(&i2c_mutex);
     i2c_write_blocking_until(I2C_ID, addr, msg, 2, false, t);
+    mutex_exit(&i2c_mutex);
 }
 
 int i2c_scan(uint8_t *addresses, int max_addresses)
@@ -115,6 +151,7 @@ int i2c_scan(uint8_t *addresses, int max_addresses)
     if (!i2c_initialized) i2c_initialize();
 
     int count = 0;
+    mutex_enter_blocking(&i2c_mutex);
     for (uint8_t addr = 0x08; addr <= 0x77 && count < max_addresses; ++addr)
     {
         uint8_t value;
@@ -124,6 +161,7 @@ int i2c_scan(uint8_t *addresses, int max_addresses)
             addresses[count++] = addr;
         }
     }
+    mutex_exit(&i2c_mutex);
     return count;
 }
 

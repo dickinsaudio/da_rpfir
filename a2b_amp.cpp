@@ -22,7 +22,7 @@
 
 #define A2B_BUS_ADC_SCALE ((200.0F + 10.0F)/10.0F)
 #define A2B_AMP_ADC_SCALE ((200.0F + 10.0F)/10.0F)
-#define A2B_CURRENT_ADC_SCALE 2000.0f
+#define A2B_CURRENT_ADC_SCALE 1000.0f
 
 #define A2B_ADC_VREF 3.3f
 #define A2B_ADC_MAX 4095.0f
@@ -39,7 +39,10 @@ static inline uint adc_gpio_to_input(uint gpio)
 static float read_adc_scaled(uint gpio, float scale)
 {
     adc_select_input(adc_gpio_to_input(gpio));
-    return adc_read() * A2B_ADC_VREF / A2B_ADC_MAX * scale;
+    adc_read();
+    uint32_t sum = 0;
+    for (int sample = 0; sample < 8; ++sample) sum += adc_read();
+    return (sum / 8.0F) * A2B_ADC_VREF / A2B_ADC_MAX * scale;
 }
 
 void a2b_amp_init()

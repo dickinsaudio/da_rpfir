@@ -4,6 +4,8 @@
 #include "i2s.pio.h"
 #include "arm_math.h"
 
+#include <cmath>
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // I2S AUDIO SETUP
 //
@@ -66,8 +68,10 @@ void __not_in_flash() i2s_dma_handler(void)
         if (audio_in_peaks[1] < val)               audio_in_peaks[1] = val;
     }
     
+#if !I2S_TEST_TONE_ENABLE
     //memcpy(out_ptr, in_ptr, I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
     fir_compute(in_ptr, out_ptr);
+#endif
 
     p = out_ptr;
     for (int n = 0; n < I2S_BLOCK; n++) 
@@ -84,10 +88,22 @@ void __not_in_flash() i2s_dma_handler(void)
 void i2s_setup()
 {
     Notice("SETTING UP I2S DMA");
+
+#if I2S_TEST_TONE_ENABLE
+    constexpr int tone_cycles = 64;
+    const float amplitude = 0x7FFFFFFF * powf(10.0F, I2S_TEST_TONE_DB / 20.0F);
+    for (int frame = 0; frame < I2S_BUFFER; ++frame)
+    {
+        int32_t sample = (int32_t)(amplitude * sinf(2.0F * (float)M_PI * tone_cycles * frame / I2S_BUFFER));
+        i2s_out[I2S_CHANS * frame] = sample;
+        i2s_out[I2S_CHANS * frame + 1] = sample;
+    }
+    Notice("I2S TEST TONE: %.3f Hz, %.1f dBFS", (float)tone_cycles * SAMPLE_RATE / I2S_BUFFER, I2S_TEST_TONE_DB);
+#endif
     
     pio_clear_instruction_memory(I2S_PIO);
-    uint offset = pio_add_program (I2S_PIO  , &i2s_follower_out_program);
-    i2s_follower_out_init(I2S_PIO, I2S_OUT_SM, offset, I2S_IN_LRCLK_PIN, I2S_OUT_SD_PIN, I2S_OUT_BCLK_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);   
+    uint offset = pio_add_program(I2S_PIO, &i2s_bclk_slave_out_program);
+    i2s_bclk_slave_out_init(I2S_PIO, I2S_OUT_SM, offset, I2S_IN_BCLK_PIN, I2S_IN_LRCLK_PIN, I2S_OUT_SD_PIN);
 
     offset = pio_add_program (I2S_PIO  , &i2s_in_program);  
     i2s_in_init(I2S_PIO, I2S_IN_SM, offset, I2S_IN_LRCLK_PIN, I2S_IN_SD_PIN, CLK_PIO_DIV_N, CLK_PIO_DIV_F);
