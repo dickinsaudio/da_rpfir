@@ -14,20 +14,20 @@ add_definitions(-DDEVICE_BOARD_NAME=W5500_EVB_PICO2)
 add_definitions(-DPICO_DEF)
 
 
-add_definitions(-DPICO_BUTTON=14)
+#add_definitions(-DPICO_BUTTON=14)
 
-add_definitions(-DPICO_DEFAULT_UART=1)
-add_definitions(-DPICO_DEFAULT_UART_TX_PIN=4)   # Overlapping use of these pins
-add_definitions(-DPICO_DEFAULT_UART_RX_PIN=5)   # Use the UART in debug mode  
+#add_definitions(-DPICO_DEFAULT_UART=1)
+#add_definitions(-DPICO_DEFAULT_UART_TX_PIN=4)   # Overlapping use of these pins
+#add_definitions(-DPICO_DEFAULT_UART_RX_PIN=5)   # Use the UART in debug mode  
 
-add_definitions(-DPICO_I2C_SDA_PIN=22)
-add_definitions(-DPICO_I2C_SCL_PIN=23)
+add_definitions(-DPICO_I2C_SDA_PIN=8)
+add_definitions(-DPICO_I2C_SCL_PIN=9)
 
-add_definitions(-DPICO_RGB_PIN=15)
+add_definitions(-DPICO_RGB_PIN=6)
 
 
 
-add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog - frees 96KB for M_FIR=3 + SRAM twiddle tables
+add_definitions(-Dsyslog_size=32*1024)   # 32KB syslog 
 
 # System clock: 288MHz (12MHz XTAL * 120 / 5 / 1 = 1440MHz VCO / 5 / 1)
 # Must define PLL parameters alongside SYS_CLK_KHZ, otherwise clocks.h emits a #error
@@ -194,7 +194,7 @@ pico_set_program_version(da_rpfir "1.0.1")
 
 # no_flash means the target is to run from RAM
 # pico_set_binary_type(da_rpfir no_flash)
-pico_enable_stdio_uart(da_rpfir  1)
+pico_enable_stdio_uart(da_rpfir  0)
 pico_enable_stdio_usb(da_rpfir 1)
 
 # Add any user requested libraries

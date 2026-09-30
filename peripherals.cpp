@@ -48,9 +48,9 @@ void send_rgb(uint8_t r, uint8_t g, uint8_t b) {};
 
 
 
-//#define PICO_I2C_SCL_PIN 23
-//#define PICO_I2C_SDA_PIN 22
-#define I2C_ID i2c1
+//#define PICO_I2C_SCL_PIN 9
+//#define PICO_I2C_SDA_PIN 8
+#define I2C_ID i2c0
 #define I2C_SPEED 50000
 
 static bool i2c_initialized; 

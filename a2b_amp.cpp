@@ -5,23 +5,18 @@
 #include "board_list.h"
 #include "pico/stdlib.h"
 
-#define AMP_RESET_PIN 13
+#define AMP_RESET_PIN 16
+#define AMP_MUTE_PIN 17
 
 
-#define A2B_BUS_ADC_GPIO 26
-#define A2B_AMP_ADC_GPIO 27
+#define A2B_BUS_ADC_GPIO 27
+#define A2B_AMP_ADC_GPIO 26
 #define A2B_CURRENT_ADC_GPIO 28
-#define A2B_22V_EN_GPIO 24
-#define A2B_ICTRL_PWM_GPIO 25
+#define A2B_22V_EN_GPIO 11
+#define A2B_ICTRL_PWM_GPIO 10
 
-#if (DEVICE_BOARD_NAME == W55RP20_EVB_PICO)
-#define A2B_ICTRL_CONFLICT 1
-#else
-#define A2B_ICTRL_CONFLICT 0
-#endif
-
-#define A2B_BUS_ADC_SCALE ((200.0F + 10.0F)/10.0F)
-#define A2B_AMP_ADC_SCALE ((200.0F + 10.0F)/10.0F)
+#define A2B_BUS_ADC_SCALE ((200.0F + 22.1F)/22.1F)
+#define A2B_AMP_ADC_SCALE ((200.0F + 22.1F)/22.1F)
 #define A2B_CURRENT_ADC_SCALE 1000.0f
 
 #define A2B_ADC_VREF 3.3f
@@ -61,21 +56,21 @@ void a2b_amp_init()
     gpio_set_dir(A2B_22V_EN_GPIO, GPIO_OUT);
     gpio_put(A2B_22V_EN_GPIO, 0);
 
-#if A2B_ICTRL_CONFLICT
-    s_a2b_ictrl_available = false;
-    s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-#else
     gpio_init(A2B_ICTRL_PWM_GPIO);
     gpio_set_dir(A2B_ICTRL_PWM_GPIO, GPIO_IN);
     gpio_disable_pulls(A2B_ICTRL_PWM_GPIO);
     s_a2b_ictrl_available = true;
     s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-#endif
 
     gpio_init(AMP_RESET_PIN);
     gpio_set_dir(AMP_RESET_PIN, GPIO_OUT);
     gpio_put(AMP_RESET_PIN, 1);
+    gpio_init(AMP_MUTE_PIN);
+    gpio_set_dir(AMP_MUTE_PIN, GPIO_OUT);
+    gpio_put(AMP_MUTE_PIN, 1);
+    
     sleep_ms(10);
+
 
     s_a2b_adc_initialized = true;
 }

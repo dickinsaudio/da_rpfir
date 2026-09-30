@@ -1,0 +1,38 @@
+diff --git a/port/ioLibrary_Driver/inc/wizchip_spi.h b/port/ioLibrary_Driver/inc/wizchip_spi.h
+index 1ec1d46..ea42aed 100644
+--- a/port/ioLibrary_Driver/inc/wizchip_spi.h
++++ b/port/ioLibrary_Driver/inc/wizchip_spi.h
+@@ -48,12 +48,12 @@
+ #define SPI_PORT spi0
+ #define SPI_CLK  10
+ 
+-#define PIN_SCK 18
+-#define PIN_MOSI 19
+-#define PIN_MISO 16
+-#define PIN_CS 17
+-#define PIN_RST 20
+-#define PIN_INT 21
++#define PIN_SCK 2
++#define PIN_MOSI 3
++#define PIN_MISO 0
++#define PIN_CS 1
++#define PIN_RST 4
++#define PIN_INT 5
+ 
+ /* Use SPI DMA */
+ //#define USE_SPI_DMA // if you want to use SPI DMA, uncomment.
+diff --git a/port/mbedtls/inc/ssl_config.h b/port/mbedtls/inc/ssl_config.h
+index da6424a..dca2179 100644
+--- a/port/mbedtls/inc/ssl_config.h
++++ b/port/mbedtls/inc/ssl_config.h
+@@ -35,7 +35,9 @@
+ #define _CRT_SECURE_NO_DEPRECATE 1
+ #endif
+ 
+-#define MBEDTLS_HAVE_ASM
++/* Disabled for RP2350 debug builds: avoids GCC inline-asm register
++ * constraint failures in bn_mul.h at -O0. */
++/* #define MBEDTLS_HAVE_ASM */
+ #define MBEDTLS_CIPHER_MODE_CBC
+ #define MBEDTLS_REMOVE_ARC4_CIPHERSUITES
+ #define MBEDTLS_KEY_EXCHANGE_RSA_ENABLED

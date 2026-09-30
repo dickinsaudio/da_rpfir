@@ -143,9 +143,9 @@ extern Histogram i2s_dma_execution;
 extern Histogram core_idle[2];
 extern Histogram core_stall[2];
 
-#define     I2S_IN_BCLK_PIN     0
-#define     I2S_IN_LRCLK_PIN    1
-#define     I2S_IN_SD_PIN       2
-#define     I2S_OUT_SD_PIN      8
+#define     I2S_IN_BCLK_PIN     24
+#define     I2S_IN_LRCLK_PIN    25
+#define     I2S_IN_SD_PIN       23
+#define     I2S_OUT_SD_PIN      12
 
 
