@@ -135,9 +135,11 @@ int main()
     // Prime the volume with whatever the renderer currently reports so the
     // DSP gain is never stuck at 0 waiting for the first interrupt.
     {
-        uint8_t vol = renderer_poll_volume();
-        if (vol == 0 || vol & 0x80) volume_set(0, 0, 0);
-        else                        volume_set(vol, 0, 0);
+        uint8_t vol;
+        // TODO SLightly dangerous to default to 100 if there is no renderer
+        if (!renderer_poll_volume(&vol)) volume_set(100, 0, 0);
+        else if (vol == 0 || vol & 0x80) volume_set(0, 0, 0);
+        else                             volume_set(vol, 0, 0);
     }
 
     int64_t next_renderer_poll = now_ns();
@@ -162,10 +164,12 @@ int main()
 
                 }
                 if (interrupts & RENDERER_IF0_VOL) {
-                    uint8_t vol = renderer_poll_volume();
-                    if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
-                    else                      volume_set(vol, 100, 80);  
-                    printf("Renderer volume: %02X\n", vol);
+                    uint8_t vol;
+                    if (renderer_poll_volume(&vol)) {
+                        if (vol == 0 || vol&0x80) volume_set(0,   200, 0);  // Mute immediately
+                        else                      volume_set(vol, 100, 80);
+                        printf("Renderer volume: %02X\n", vol);
+                    }
                 }
                 next_renderer_poll += + 10000000;
             }
@@ -183,7 +187,11 @@ int main()
                 status  = s;
                 printf("ROON CONTROL  %02X     STATUS %02X\n", control, status);
             }
-            printf("Status %02X Control %02X  Volume %02X\n", status, control, renderer_poll_volume());
+            uint8_t vol;
+            if (renderer_poll_volume(&vol))
+                printf("Status %02X Control %02X  Volume %02X\n", status, control, vol);
+            else
+                printf("Status %02X Control %02X  Volume unavailable\n", status, control);
             //extern uint16_t power_pwm_values[2];
             //printf("ADC: %.3f  %.3f    PWM: %d  %d\n", power_read_voltage(0), power_read_voltage(1), power_pwm_values[0], power_pwm_values[1]);
             next_status_dump += 2000000000;            

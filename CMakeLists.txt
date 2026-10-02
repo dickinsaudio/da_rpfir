@@ -126,6 +126,15 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/WIZnet-PICO-C/libraries)
 add_subdirectory(${MBEDTLS_DIR})
 add_subdirectory(${PORT_DIR})
 
+# bignum_core.c's inline asm needs more registers than -O0 leaves free on Cortex-M33,
+# causing "impossible constraints" errors in Debug builds - compile it at -O1 instead.
+# Source properties are directory-scoped, so target the mbedcrypto target's own directory.
+set_property(
+        SOURCE ${MBEDTLS_DIR}/library/bignum_core.c
+        DIRECTORY ${MBEDTLS_DIR}/library
+        PROPERTY COMPILE_OPTIONS "-O1"
+        )
+
 
 find_package(Git QUIET)
 

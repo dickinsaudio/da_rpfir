@@ -208,8 +208,8 @@ bool    renderer_read_reg(uint8_t addr, uint8_t *data);
 // Write a single Byte-type register. Returns true on success.
 bool    renderer_write_reg(uint8_t addr, uint8_t data);
 
-// Poll REG_VOL (0x40) and return volume as 0-100. Returns 0 on comms error.
-uint8_t renderer_poll_volume(void);
+// Poll REG_VOL (0x40). Returns true and stores the volume on success.
+bool    renderer_poll_volume(uint8_t *volume);
 
 // Returns true when the INT pin is asserted (active-low) by the MR-MOD.
 bool    renderer_int_asserted(void);
