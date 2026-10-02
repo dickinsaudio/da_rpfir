@@ -5,10 +5,6 @@
 #include "board_list.h"
 #include "pico/stdlib.h"
 
-#define AMP_RESET_PIN 16
-#define AMP_MUTE_PIN 17
-
-
 #define A2B_BUS_ADC_GPIO 27
 #define A2B_AMP_ADC_GPIO 26
 #define A2B_CURRENT_ADC_GPIO 28
@@ -61,16 +57,6 @@ void a2b_amp_init()
     gpio_disable_pulls(A2B_ICTRL_PWM_GPIO);
     s_a2b_ictrl_available = true;
     s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-
-    gpio_init(AMP_RESET_PIN);
-    gpio_set_dir(AMP_RESET_PIN, GPIO_OUT);
-    gpio_put(AMP_RESET_PIN, 1);
-    gpio_init(AMP_MUTE_PIN);
-    gpio_set_dir(AMP_MUTE_PIN, GPIO_OUT);
-    gpio_put(AMP_MUTE_PIN, 1);
-    
-    sleep_ms(10);
-
 
     s_a2b_adc_initialized = true;
 }

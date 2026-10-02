@@ -109,6 +109,9 @@ using namespace DAES67;
 #define     I2S_TEST_TONE_ENABLE  1
 #define     I2S_TEST_TONE_DB     -10.0F
 
+void test_tone_set_db(float db);
+float test_tone_get_db();
+
 
 //#define     FILTER_0         SGR_High_SGR
 //#define     FILTER_1         SGR_Mid_SGR
@@ -146,6 +149,6 @@ extern Histogram core_stall[2];
 #define     I2S_IN_BCLK_PIN     24
 #define     I2S_IN_LRCLK_PIN    25
 #define     I2S_IN_SD_PIN       23
-#define     I2S_OUT_SD_PIN      12
+#define     I2S_OUT_SD_PIN      13
 
 

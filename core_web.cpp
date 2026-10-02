@@ -168,6 +168,11 @@ function dumpMAX98415() {
         .finally(() => { button.disabled = false; });
 }
 
+function setToneVolume(value) {
+    document.getElementById('tone_volume_value').innerText = value + ' dBFS';
+    fetch('set?tone_db=' + encodeURIComponent(value));
+}
+
 function hex(value, width) {
     return value.toString(16).toUpperCase().padStart(width, '0');
 }
@@ -182,6 +187,8 @@ function updateA2B() {
                 'A2B Bus Voltage: ' + data.a2b_bus_voltage.toFixed(2) + ' V\n\n' +
                 'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V\n\n' +
                 'A2B Amp Current: ' + data.a2b_amp_current.toFixed(0) + ' mA';
+            document.getElementById('tone_volume').value = data.test_tone_db;
+            document.getElementById('tone_volume_value').innerText = data.test_tone_db + ' dBFS';
 
             const ampStatus = document.getElementById('amp_status_text');
             if (!data.max98415_online) {
@@ -421,6 +428,9 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_disable')\">ICTRL DISABLE</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_low')\">ICTRL LOW</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_high')\">ICTRL HIGH</button><br><br>");
+    ADD("<label for=\"tone_volume\">Test tone volume</label> ");
+    ADD("<input id=\"tone_volume\" type=\"range\" min=\"-60\" max=\"0\" step=\"1\" value=\"-10\" onchange=\"setToneVolume(this.value)\">");
+    ADD("<span id=\"tone_volume_value\">-10 dBFS</span><br><br>");
     ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
     ADD("<button id=\"amp_enable_button\" class=\"but\" onclick=\"enableAmp()\">AMP ENABLE</button>");
     ADD("<button class=\"but\" onclick=\"set('amp_disable')\">AMP DISABLE</button><br><br>");
@@ -562,6 +572,10 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     {
         a2b_ictrl_set(A2B_ICTRL_HIGH);
     }
+    if (const char *tone_db = strstr(arg,"tone_db="))
+    {
+        test_tone_set_db((float)atof(tone_db + 8));
+    }
     if (strstr(arg,"amp_enable"))
     {
         amp_enable_result = amp_enable() ? 1 : 0;
@@ -634,6 +648,7 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         ADD("\"a2b_amp_current\":%.2f,", a2b_amp_current());
         ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
         ADD("\"a2b_ictrl\":%d,", a2b_ictrl_get());
+        ADD("\"test_tone_db\":%.1f,", test_tone_get_db());
         ADD("\"max98415_online\":%d,", amp_online ? 1 : 0);
         ADD("\"max98415_enable_result\":%d,", amp_enable_result);
         if (amp_online)
