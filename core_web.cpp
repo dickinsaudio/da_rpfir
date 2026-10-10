@@ -101,6 +101,7 @@ static char __in_flash() page_scripts[] =
                 "setTimeout(updateMeters,50);})"
             ".catch(err => { setTimeout(updateMeters,2000); });"
     "}"
+    "document.addEventListener('DOMContentLoaded', updateMeters);"
     "function set(s)  { fetch('set?' + s); }"
     "function get(s)  { fetch('get?' + s); }"
     "function setr(s) { fetch('set?' + s) .finally(() => { window.location.reload();}); }"
@@ -181,12 +182,15 @@ function updateA2B() {
     fetch('get?a2b')
         .then(response => response.json())
         .then(data => {
+            const inputVoltage = data.a2b_bus_voltage;
+            const inputCurrent = data.a2b_input_current;
             document.getElementById('a2b_text').innerText =
                 '22V Enable GPIO24: ' + (data.a2b_22v ? 'ON' : 'OFF') + '\n\n' +
                 'ICTRL PWM GPIO25:  ' + (data.a2b_ictrl == 0 ? 'DISABLED' : (data.a2b_ictrl == 1 ? 'LOW' : 'HIGH')) + '\n\n' +
-                'A2B Bus Voltage: ' + data.a2b_bus_voltage.toFixed(2) + ' V\n\n' +
-                'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V\n\n' +
-                'A2B Amp Current: ' + data.a2b_amp_current.toFixed(0) + ' mA';
+                'A2B Input Voltage: ' + inputVoltage.toFixed(2) + ' V\n\n' +
+                'A2B Input Current: ' + inputCurrent.toFixed(0) + ' mA\n\n' +
+                'A2B Input Power: ' + (inputVoltage * inputCurrent / 1000).toFixed(2) + ' W\n\n' +
+                'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V';
             document.getElementById('tone_volume').value = data.test_tone_db;
             document.getElementById('tone_volume_value').innerText = data.test_tone_db + ' dBFS';
 
@@ -645,7 +649,7 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         bool amp_online = max98415_read_status(&amp_status);
         ADD("\"a2b_bus_voltage\":%.2f,", a2b_bus_voltage());
         ADD("\"a2b_amp_voltage\":%.2f,", a2b_amp_voltage());
-        ADD("\"a2b_amp_current\":%.2f,", a2b_amp_current());
+        ADD("\"a2b_input_current\":%.2f,", a2b_input_current());
         ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
         ADD("\"a2b_ictrl\":%d,", a2b_ictrl_get());
         ADD("\"test_tone_db\":%.1f,", test_tone_get_db());

@@ -106,7 +106,7 @@ using namespace DAES67;
 #define     CLK_SYS         (288000000L)                                    // The system clock frequency
 #define     SAMPLE_RATE     (48000)                                        // The audio sample rate
 
-#define     I2S_TEST_TONE_ENABLE  1
+#define     I2S_TEST_TONE_ENABLE  0
 #define     I2S_TEST_TONE_DB     -10.0F
 
 void test_tone_set_db(float db);
@@ -148,7 +148,5 @@ extern Histogram core_stall[2];
 
 #define     I2S_IN_BCLK_PIN     24
 #define     I2S_IN_LRCLK_PIN    25
-#define     I2S_IN_SD_PIN       23
+#define     I2S_IN_SD_PIN       19
 #define     I2S_OUT_SD_PIN      13
-
-

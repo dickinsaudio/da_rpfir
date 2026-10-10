@@ -198,5 +198,3 @@ void w5500_dhcp(void)
     Notice("GATEWAY           %d.%d.%d.%d", flash->net_info.gw[0], flash->net_info.gw[1], flash->net_info.gw[2], flash->net_info.gw[3]);
 }
 
-
-

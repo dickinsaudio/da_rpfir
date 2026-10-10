@@ -127,7 +127,7 @@ float a2b_amp_voltage()
     return read_adc_scaled(A2B_AMP_ADC_GPIO, A2B_AMP_ADC_SCALE);
 }
 
-float a2b_amp_current()
+float a2b_input_current()
 {
     a2b_amp_init();
     return read_adc_scaled(A2B_CURRENT_ADC_GPIO, A2B_CURRENT_ADC_SCALE);

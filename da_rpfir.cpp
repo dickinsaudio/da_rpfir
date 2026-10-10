@@ -1,4 +1,6 @@
 #include "da_rpfir.hpp"
+#include "a2b_amp.hpp"
+#include "max98415.hpp"
 #include "pico/malloc.h"
 #include <pico/bootrom.h>
 #include "pwm.h"
@@ -40,6 +42,7 @@ int main()
     LogConsole(LOG_UPTO(LOG_DEBUG));
 
     flash_load();
+    a2b_amp_init();
 
     send_rgb(0, 0, 15);
 
@@ -63,6 +66,26 @@ int main()
     Notice("*********************************************");
     Notice("STARTING AUDIO SERVER IN CORE 1");
     start_audio();
+
+    Notice("WAITING 1 SECOND BEFORE ENABLING 22V");
+    sleep_ms(1000);
+    Notice("ENABLING 22V");
+    a2b_22v_enable_set(true);
+
+    Notice("WAITING 1 SECOND FOR 22V RAIL");
+    sleep_ms(1000);
+    Notice("ENABLING AMPLIFIER");
+    if (amp_enable())
+    {
+        Notice("AMPLIFIER ENABLED");
+    }
+    else
+    {
+        Notice("AMPLIFIER ENABLE FAILED");
+    }
+
+    Notice("SETTING AMPLIFIER CURRENT HIGH");
+    a2b_ictrl_set(A2B_ICTRL_HIGH);
 
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");

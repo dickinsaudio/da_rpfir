@@ -48,38 +48,6 @@ int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_in_trigger[I2S_BUFFER/I2S_BLOCK];
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out_trigger[I2S_BUFFER/I2S_BLOCK];
 
 static volatile float test_tone_db;
-static void fill_sine_approx_buffer(int32_t *buffer, int frames)
-{
-    constexpr int64_t peak = 0x20000000;
-    constexpr int frames_per_cycle = I2S_BUFFER / I2S_SINE_CYCLES;
-    constexpr int quarter_frames = frames_per_cycle / 4;
-    constexpr double half_pi = 1.57079632679489661923;
-
-    for (int frame = 0; frame < frames; ++frame)
-    {
-        const int cycle_frame = frame % frames_per_cycle;
-        const int quadrant = cycle_frame / quarter_frames;
-        const int quadrant_frame = cycle_frame % quarter_frames;
-        const double x = half_pi * quadrant_frame / quarter_frames;
-        const double x2 = x * x;
-        const double sine_quarter = x * (1.0
-            + x2 * (-1.0 / 6.0
-            + x2 * (1.0 / 120.0
-            + x2 * (-1.0 / 5040.0
-            + x2 * (1.0 / 362880.0
-            + x2 * (-1.0 / 39916800.0
-            + x2 * (1.0 / 6227020800.0
-            - x2 / 1307674368000.0)))))));
-        const double sine_approx = quadrant == 0 ? sine_quarter
-                                  : quadrant == 1 ? 1.0 - sine_quarter
-                                  : quadrant == 2 ? -sine_quarter
-                                  : -(1.0 - sine_quarter);
-        const int64_t sample = (int64_t)(peak * sine_approx);
-        buffer[I2S_CHANS * frame] = (int32_t)sample;
-        buffer[I2S_CHANS * frame + 1] = (int32_t)sample;
-    }
-}
-
 static void fill_sine_exact_buffer(int32_t *buffer, int frames, int64_t peak)
 {
     const int frames_per_cycle = frames / I2S_SINE_CYCLES;
@@ -376,7 +344,7 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 #endif
     for (int n = 0; n < T_FFT; n++)
     {
-        const float gain = 1.0;
+        const float gain = 3.0;
         float32_t val = *buf1++ * gain;
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;

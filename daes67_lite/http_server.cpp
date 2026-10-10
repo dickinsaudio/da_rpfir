@@ -38,12 +38,29 @@
 #ifdef PICO_BUILD
 #include "wizchip_conf.h"
 
+static bool w5500_poll_timed_out(int sock, const char *operation, int64_t deadline)
+{
+    if (DAES67::now_ns() < deadline) return false;
+    Error("W5500 SOCKET %d: %s TIMEOUT", sock, operation);
+    return true;
+}
+
+static bool w5500_wait_command(uint8_t sn)
+{
+    const int64_t deadline = DAES67::now_ns() + 10000000LL;
+    while (getSn_CR(sn))
+        if (w5500_poll_timed_out(sn, "COMMAND", deadline)) return false;
+    return true;
+}
+
 inline int ready_in(int sock)           // Faster alternative to GetSn_RX_RSR
 { 
+    const int64_t deadline = DAES67::now_ns() + 10000000LL;
     uint16_t val0=0,val1=0;
     WIZCHIP_READ_BUF(Sn_RX_RSR(sock), (uint8_t *)&val0, 2);    
     while(val0 != val1)                 // Fall through on 0, or retest for stable
     {
+        if (w5500_poll_timed_out(sock, "RX SIZE", deadline)) return -1;
         val1 = val0;
         WIZCHIP_READ_BUF(Sn_RX_RSR(sock), (uint8_t *)&val0, 2);
     }
@@ -52,10 +69,12 @@ inline int ready_in(int sock)           // Faster alternative to GetSn_RX_RSR
 
 inline int ready_out(int sock)          // Faster alternative to GetSn_TX_FSR
 { 
+    const int64_t deadline = DAES67::now_ns() + 10000000LL;
     uint16_t val0=0,val1=0;
     WIZCHIP_READ_BUF(Sn_TX_FSR(sock), (uint8_t *)&val0, 2);    
     while(val0 != val1)                 // Fall through on 0, or retest for stable
     {
+        if (w5500_poll_timed_out(sock, "TX SIZE", deadline)) return -1;
         val1 = val0;
         WIZCHIP_READ_BUF(Sn_TX_FSR(sock), (uint8_t *)&val0, 2);
     }
@@ -80,10 +99,12 @@ inline int ready_out(int sock)          // Faster alternative to GetSn_TX_FSR
 
 inline int8_t my_close(uint8_t sn) 
 {
+    const int64_t deadline = DAES67::now_ns() + 10000000LL;
     while (getSn_SR(sn) != SOCK_CLOSED)
     {
+        if (w5500_poll_timed_out(sn, "CLOSE", deadline)) return SOCKERR_SOCKSTATUS;
         setSn_CR(sn,Sn_CR_CLOSE);
-        while(getSn_CR(sn)) {};
+        if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
 	    if (getSn_SR(sn) == SOCK_CLOSED) break;
         printf("Extra close\n");
         sleep_ms(1);
@@ -95,19 +116,21 @@ inline int8_t my_close(uint8_t sn)
 // For TCP and listening on specific port only
 int8_t my_socket(uint8_t sn, uint16_t port)
 {
-	my_close(sn);
+	if (my_close(sn) != SOCK_OK) return SOCKERR_SOCKSTATUS;
     setSn_MR(sn, (Sn_MR_TCP));
     setSn_PORT(sn,port);	
     setSn_CR(sn,Sn_CR_OPEN);
-    while(getSn_CR(sn));
-    while(getSn_SR(sn) == SOCK_CLOSED);
+    if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
+    const int64_t deadline = DAES67::now_ns() + 10000000LL;
+    while(getSn_SR(sn) == SOCK_CLOSED)
+        if (w5500_poll_timed_out(sn, "OPEN", deadline)) return SOCKERR_SOCKSTATUS;
     return (int8_t)sn;
 }
 
 inline int8_t my_listen(uint8_t sn)
 {
 	setSn_CR(sn,Sn_CR_LISTEN);
-	while(getSn_CR(sn));
+	if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
     int SR = getSn_SR(sn);
     if (SR == SOCK_LISTEN || SR == SOCK_ESTABLISHED) return SOCK_OK;
     my_close(sn);
@@ -117,7 +140,7 @@ inline int8_t my_listen(uint8_t sn)
 int8_t my_disconnect(uint8_t sn)
 {
 	setSn_CR(sn,Sn_CR_DISCON);
-	while(getSn_CR(sn));
+	if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
     return SOCK_OK;
 }
 
@@ -128,6 +151,7 @@ int32_t my_send(uint8_t sn, uint8_t * buf, uint16_t len)
     uint8_t tmp = getSn_SR(sn);
     if(tmp != SOCK_ESTABLISHED) return SOCKERR_SOCKSTATUS;
     int freesize = ready_out(sn);
+    if (freesize < 0) return SOCKERR_SOCKSTATUS;
     if (len > freesize) len = freesize;         // check size not to exceed MAX size.
     if (len==0) return 0;                       // No space available
 
@@ -150,7 +174,7 @@ int32_t my_send(uint8_t sn, uint8_t * buf, uint16_t len)
 
     setSn_TX_WR(sn,ptr);
     setSn_CR(sn,Sn_CR_SEND);
-    while(getSn_CR(sn));
+    if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
     return (int32_t)(len-remain);
 }
 
@@ -159,6 +183,7 @@ int32_t my_recv(uint8_t sn, uint8_t * buf, uint16_t len)
     uint8_t  tmp = getSn_SR(sn);
     if(tmp != SOCK_ESTABLISHED) return SOCKERR_SOCKSTATUS;
     int recvsize = ready_in(sn);
+    if (recvsize < 0) return SOCKERR_SOCKSTATUS;
     if(recvsize < len) len = recvsize;   
     if (len==0) return 0;
 
@@ -181,7 +206,7 @@ int32_t my_recv(uint8_t sn, uint8_t * buf, uint16_t len)
 
     setSn_RX_RD(sn,ptr);
     setSn_CR(sn,Sn_CR_RECV);
-    while(getSn_CR(sn));
+    if (!w5500_wait_command(sn)) return SOCKERR_SOCKSTATUS;
     return (int32_t)(len-remain);
 }
 
@@ -945,4 +970,3 @@ char* HttpServer::get_client_list(int length, char *buf)
 
 
 } // namespace DAES67
-
