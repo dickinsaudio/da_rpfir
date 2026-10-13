@@ -13,13 +13,10 @@ int  a2b_amp_stats_text(int step, int len, char *buf);     // Text for histogram
 void a2b_22v_enable_set(bool enabled);
 bool a2b_22v_enable_get();
 
-enum
-{
-	A2B_ICTRL_DISABLED = 0,
-	A2B_ICTRL_LOW = 1,
-	A2B_ICTRL_HIGH = 2,
-	A2B_ICTRL_PWM_9 = 3
-};
-
-void a2b_ictrl_set(int mode);
-int a2b_ictrl_get();
+constexpr float A2B_CURRENT_LIMIT_DEFAULT_MA = 400.0F;
+// Always PWM on GPIO10. Invalid/unachievable requests are logged and leave the setting unchanged.
+bool a2b_current_limit_set(float current_ma);
+// Nominal sense-current limit after PWM quantization, not measured supply current.
+float a2b_current_limit_get();
+float a2b_current_limit_min();
+float a2b_current_limit_max();

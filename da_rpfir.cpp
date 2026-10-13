@@ -84,8 +84,7 @@ int main()
         Notice("AMPLIFIER ENABLE FAILED");
     }
 
-    Notice("SETTING AMPLIFIER CURRENT PWM 9%");
-    a2b_ictrl_set(A2B_ICTRL_PWM_9);
+    Notice("AMPLIFIER CURRENT LIMIT %.1f mA", a2b_current_limit_get());
 
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");

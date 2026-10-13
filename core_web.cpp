@@ -178,6 +178,19 @@ function hex(value, width) {
     return value.toString(16).toUpperCase().padStart(width, '0');
 }
 
+function setCurrentLimit() {
+    const input = document.getElementById('current_limit');
+    if (!input.reportValidity()) return;
+    const result = document.getElementById('current_limit_result');
+    fetch('set?a2b_current_limit_ma=' + encodeURIComponent(input.value))
+        .then(response => {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.text();
+        })
+        .then(text => { result.innerText = text; })
+        .catch(error => { result.innerText = 'Current limit request failed: ' + error.message; });
+}
+
 function updateA2B() {
     fetch('get?a2b')
         .then(response => response.json())
@@ -186,7 +199,7 @@ function updateA2B() {
             const inputCurrent = data.a2b_input_current;
             document.getElementById('a2b_text').innerText =
                 '22V Enable GPIO24: ' + (data.a2b_22v ? 'ON' : 'OFF') + '\n\n' +
-                'ICTRL GPIO10 (pin 14): ' + (data.a2b_ictrl == 0 ? 'FLOAT' : (data.a2b_ictrl == 1 ? 'LOW' : (data.a2b_ictrl == 2 ? 'HIGH' : 'PWM 9% (0.30V)'))) + '\n\n' +
+                'ICTRL GPIO10 (pin 14): PWM, nominal limit ' + data.a2b_current_limit_ma.toFixed(1) + ' mA\n\n' +
                 'A2B Input Voltage: ' + inputVoltage.toFixed(2) + ' V\n\n' +
                 'A2B Input Current: ' + inputCurrent.toFixed(0) + ' mA\n\n' +
                 'A2B Input Power: ' + (inputVoltage * inputCurrent / 1000).toFixed(2) + ' W\n\n' +
@@ -440,10 +453,11 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD("<h2>A2B AMP</h2>");
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_on')\">22V ON</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button><br><br>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_disable')\">ICTRL DISABLE</button>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_low')\">ICTRL LOW</button>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_high')\">ICTRL HIGH</button>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_pwm_9')\">ICTRL PWM 9% (0.30V)</button><br><br>");
+    ADD("<label for=\"current_limit\">Current limit (mA)</label> ");
+    ADD("<input id=\"current_limit\" type=\"number\" min=\"%.0f\" max=\"%.0f\" step=\"1\" value=\"%.0f\" required>",
+        ceilf(a2b_current_limit_min()), floorf(a2b_current_limit_max()), roundf(a2b_current_limit_get()));
+    ADD("<button class=\"but\" onclick=\"setCurrentLimit()\">SET CURRENT</button>");
+    ADD("<span id=\"current_limit_result\"></span><br><br>");
     ADD("<label for=\"tone_volume\">Test tone volume</label> ");
     ADD("<input id=\"tone_volume\" type=\"range\" min=\"-60\" max=\"0\" step=\"1\" value=\"%d\" onchange=\"setToneVolume(this.value)\">", (int)test_tone_get_db());
     ADD("<span id=\"tone_volume_value\">%d dBFS</span><br><br>", (int)test_tone_get_db());
@@ -596,21 +610,22 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     {
         a2b_22v_enable_set(false);
     }
-    if (strstr(arg,"a2b_ictrl_disable"))
+    if (const char *current = strstr(arg,"a2b_current_limit_ma="))
     {
-        a2b_ictrl_set(A2B_ICTRL_DISABLED);
-    }
-    if (strstr(arg,"a2b_ictrl_low"))
-    {
-        a2b_ictrl_set(A2B_ICTRL_LOW);
-    }
-    if (strstr(arg,"a2b_ictrl_high"))
-    {
-        a2b_ictrl_set(A2B_ICTRL_HIGH);
-    }
-    if (strstr(arg,"a2b_ictrl_pwm_9"))
-    {
-        a2b_ictrl_set(A2B_ICTRL_PWM_9);
+        char *end = nullptr;
+        const char *value = current + strlen("a2b_current_limit_ma=");
+        const float current_ma = strtof(value, &end);
+        if (end == value || (*end != '\0' && *end != '&'))
+        {
+            Warning("Invalid current limit request");
+            snprintf(buf, len, "Invalid current limit.");
+        }
+        else if (!a2b_current_limit_set(current_ma))
+            snprintf(buf, len, "Current limit must be between %.2f and %.2f mA.",
+                     a2b_current_limit_min(), a2b_current_limit_max());
+        else
+            snprintf(buf, len, "Nominal limit set to %.1f mA.", a2b_current_limit_get());
+        return buf;
     }
     if (const char *tone_db = strstr(arg,"tone_db="))
     {
@@ -687,7 +702,7 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
         ADD("\"a2b_amp_voltage\":%.2f,", a2b_amp_voltage());
         ADD("\"a2b_input_current\":%.2f,", a2b_input_current());
         ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
-        ADD("\"a2b_ictrl\":%d,", a2b_ictrl_get());
+        ADD("\"a2b_current_limit_ma\":%.1f,", a2b_current_limit_get());
         ADD("\"test_tone_db\":%.1f,", test_tone_get_db());
         ADD("\"max98415_online\":%d,", amp_online ? 1 : 0);
         ADD("\"max98415_enable_result\":%d,", amp_enable_result);

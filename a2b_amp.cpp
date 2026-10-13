@@ -8,6 +8,8 @@
 #include "board_list.h"
 #include "pico/stdlib.h"
 #include "pwm.h"
+#include "log.hpp"
+#include <cmath>
 
 using DAES67::Histogram;
 
@@ -15,10 +17,23 @@ using DAES67::Histogram;
 #define A2B_AMP_ADC_GPIO 26
 #define A2B_CURRENT_ADC_GPIO 28
 #define A2B_22V_EN_GPIO 11
-#define A2B_ICTRL_PWM_GPIO 10  // Physical pin 14
+#define A2B_ICTRL_PWM_GPIO 10  
 #define A2B_ICTRL_PWM_WRAP 999
 #define A2B_ICTRL_PWM_FREQ_KHZ 288
-#define A2B_ICTRL_PWM_LEVEL 90
+
+static constexpr float s_ictrl_rf = 1000.0F;
+static constexpr float s_ictrl_ra = 4700.0F;
+static constexpr float s_ictrl_rb = 5000.0F;
+static constexpr float s_ictrl_rc = 1000000.0F;
+static constexpr float s_ictrl_bias_voltage = 24.0F;
+static constexpr float s_ictrl_pwm_voltage = 3.3F;
+static constexpr float s_ictrl_rsens = 0.025F;
+static constexpr float s_ictrl_gain = 20.0F;
+// At DC the filter capacitor is open, so Rf and Ra are in series.
+static constexpr float s_ictrl_series = s_ictrl_rf + s_ictrl_ra;
+static constexpr float s_ictrl_conductance =
+    1.0F / s_ictrl_series + 1.0F / s_ictrl_rb + 1.0F / s_ictrl_rc;
+static constexpr float s_ictrl_ma_per_volt = 1000.0F / (s_ictrl_rsens * s_ictrl_gain);
 
 #define A2B_BUS_ADC_SCALE ((200.0F + 22.1F)/22.1F)
 #define A2B_AMP_ADC_SCALE ((200.0F + 22.1F)/22.1F)
@@ -42,9 +57,7 @@ static Histogram s_amp_hist    ("A2B Amp (V)",    0, 35);
 static Histogram s_adc_time    ("A2B ADC IRQ (s)",0, .002);
 
 static bool s_a2b_adc_initialized = false;
-static int s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-static bool s_a2b_ictrl_available = false;
-static bool s_a2b_ictrl_pwm_initialized = false;
+static float s_a2b_current_limit_ma = 0.0F;
 
 static uint32_t __aligned(8) s_adc_trigger;         // Address reloaded into DMA1 write address by DMA2
 static int16_t  __aligned(8) s_adc_samples[4];      // Raw samples written by DMA1
@@ -134,13 +147,11 @@ void a2b_amp_init()
     gpio_put(A2B_22V_EN_GPIO, 0);
 
     gpio_init(A2B_ICTRL_PWM_GPIO);
-    gpio_set_function(A2B_ICTRL_PWM_GPIO, GPIO_FUNC_SIO);
-    gpio_set_dir(A2B_ICTRL_PWM_GPIO, GPIO_IN);
     gpio_disable_pulls(A2B_ICTRL_PWM_GPIO);
-    s_a2b_ictrl_available = true;
-    s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
+    pwmInit(A2B_ICTRL_PWM_GPIO, A2B_ICTRL_PWM_WRAP, A2B_ICTRL_PWM_FREQ_KHZ, 0);
 
     s_a2b_adc_initialized = true;
+    a2b_current_limit_set(A2B_CURRENT_LIMIT_DEFAULT_MA);
 }
 
 void a2b_22v_enable_set(bool enabled)
@@ -155,67 +166,42 @@ bool a2b_22v_enable_get()
     return gpio_get(A2B_22V_EN_GPIO) != 0;
 }
 
-void a2b_ictrl_set(int mode)
+float a2b_current_limit_min()
 {
-    a2b_amp_init();
-
-    if (!s_a2b_ictrl_available)
-    {
-        s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-        return;
-    }
-
-    if (s_a2b_ictrl_pwm_initialized && mode != A2B_ICTRL_PWM_9)
-        pwm_set_enabled(pwm_gpio_to_slice_num(A2B_ICTRL_PWM_GPIO), false);
-
-    switch (mode)
-    {
-        case A2B_ICTRL_LOW:
-            gpio_put(A2B_ICTRL_PWM_GPIO, 0);
-            gpio_set_dir(A2B_ICTRL_PWM_GPIO, GPIO_OUT);
-            gpio_set_function(A2B_ICTRL_PWM_GPIO, GPIO_FUNC_SIO);
-            s_a2b_ictrl_mode = A2B_ICTRL_LOW;
-            break;
-        case A2B_ICTRL_HIGH:
-            gpio_put(A2B_ICTRL_PWM_GPIO, 1);
-            gpio_set_dir(A2B_ICTRL_PWM_GPIO, GPIO_OUT);
-            gpio_set_function(A2B_ICTRL_PWM_GPIO, GPIO_FUNC_SIO);
-            s_a2b_ictrl_mode = A2B_ICTRL_HIGH;
-            break;
-        case A2B_ICTRL_PWM_9:
-            if (!s_a2b_ictrl_pwm_initialized)
-            {
-                pwmInit(A2B_ICTRL_PWM_GPIO, A2B_ICTRL_PWM_WRAP,
-                        A2B_ICTRL_PWM_FREQ_KHZ, A2B_ICTRL_PWM_LEVEL);
-                s_a2b_ictrl_pwm_initialized = true;
-            }
-            else
-            {
-                pwm_set_gpio_level(A2B_ICTRL_PWM_GPIO, A2B_ICTRL_PWM_LEVEL);
-                pwm_set_enabled(pwm_gpio_to_slice_num(A2B_ICTRL_PWM_GPIO), true);
-                gpio_set_function(A2B_ICTRL_PWM_GPIO, GPIO_FUNC_PWM);
-            }
-            s_a2b_ictrl_mode = A2B_ICTRL_PWM_9;
-            break;
-        default:
-            gpio_set_dir(A2B_ICTRL_PWM_GPIO, GPIO_IN);
-            gpio_disable_pulls(A2B_ICTRL_PWM_GPIO);
-            gpio_set_function(A2B_ICTRL_PWM_GPIO, GPIO_FUNC_SIO);
-            s_a2b_ictrl_mode = A2B_ICTRL_DISABLED;
-            break;
-    }
+    return (s_ictrl_bias_voltage / s_ictrl_rc) / s_ictrl_conductance * s_ictrl_ma_per_volt;
 }
 
-int a2b_ictrl_get()
+float a2b_current_limit_max()
+{
+    return (s_ictrl_pwm_voltage / s_ictrl_series + s_ictrl_bias_voltage / s_ictrl_rc)
+           / s_ictrl_conductance * s_ictrl_ma_per_volt;
+}
+
+bool a2b_current_limit_set(float current_ma)
+{
+    if (!std::isfinite(current_ma) ||
+        current_ma < a2b_current_limit_min() || current_ma > a2b_current_limit_max())
+    {
+        Warning("Current limit %.1f mA outside achievable range %.1f..%.1f mA",
+                current_ma, a2b_current_limit_min(), a2b_current_limit_max());
+        return false;
+    }
+    a2b_amp_init();
+    const float ictl_voltage = current_ma / s_ictrl_ma_per_volt;
+    const float pwm_voltage = s_ictrl_series *
+        (ictl_voltage * s_ictrl_conductance - s_ictrl_bias_voltage / s_ictrl_rc);
+    const uint level = (uint)std::lround(pwm_voltage / s_ictrl_pwm_voltage * (A2B_ICTRL_PWM_WRAP + 1));
+    pwm_set_gpio_level(A2B_ICTRL_PWM_GPIO, level);
+    const float actual_pwm_voltage = s_ictrl_pwm_voltage * level / (A2B_ICTRL_PWM_WRAP + 1);
+    s_a2b_current_limit_ma = (actual_pwm_voltage / s_ictrl_series + s_ictrl_bias_voltage / s_ictrl_rc)
+                            / s_ictrl_conductance * s_ictrl_ma_per_volt;
+    return true;
+}
+
+float a2b_current_limit_get()
 {
     a2b_amp_init();
-
-    if (!s_a2b_ictrl_available)
-    {
-        return A2B_ICTRL_DISABLED;
-    }
-
-    return s_a2b_ictrl_mode;
+    return s_a2b_current_limit_ma;
 }
 
 float a2b_bus_voltage()
