@@ -70,17 +70,17 @@ void flash_load()
 int flash_state(char *str, int len)
 {
     char *p=str;  
-    ADD("VERSION MARKER      %08lX\n",flash->magic); 
-    ADD("RPFIR   VERSION     %ld\n",flash->version);
-    ADD("BOARD NAME          %s\n",DEVICE_BOARD_NAME_STRING[flash->board]);
-    ADD("NUMBER OF LOADS     %ld\n",flash->loads); 
-    ADD("DEVICE NAME         %s\n",flash->name); 
-    ADD("FLASH ID            %02X%02X%02X%02X%02X%02X%02X%02X\n",flash->id.id[0],flash->id.id[1],flash->id.id[2],flash->id.id[3],flash->id.id[4],flash->id.id[5],flash->id.id[6],flash->id.id[7]); 
-    ADD("NETWORK MAC         %02X:%02X:%02X:%02X:%02X:%02X\n",flash->net_info.mac[0],flash->net_info.mac[1],flash->net_info.mac[2],flash->net_info.mac[3],flash->net_info.mac[4],flash->net_info.mac[5]); 
-    ADD("NETWORK IP          %d.%d.%d.%d\n",flash->net_info.ip[0],flash->net_info.ip[1],flash->net_info.ip[2],flash->net_info.ip[3]); 
-    ADD("NETWORK SUBNET      %d.%d.%d.%d\n",flash->net_info.sn[0],flash->net_info.sn[1],flash->net_info.sn[2],flash->net_info.sn[3]); 
-    ADD("NETWORK GATEWAY     %d.%d.%d.%d\n",flash->net_info.gw[0],flash->net_info.gw[1],flash->net_info.gw[2],flash->net_info.gw[3]); 
-    ADD("NETWORK DNS         %d.%d.%d.%d\n",flash->net_info.dns[0],flash->net_info.dns[1],flash->net_info.dns[2],flash->net_info.dns[3]); 
-    ADD("NETWORK DHCP MODE   %s\n",flash->net_info.dhcp == NETINFO_DHCP ? "DHCP" : "STATIC"); 
+    ADD("VER    %08lX\n",flash->magic); 
+    ADD("RPFIR  %ld\n",flash->version);
+    ADD("BOARD  %s\n",DEVICE_BOARD_NAME_STRING[flash->board]);
+    ADD("LOADS  %ld\n",flash->loads); 
+    ADD("NAME   %s\n",flash->name); 
+    ADD("ID     %02X%02X%02X%02X%02X%02X%02X%02X\n",flash->id.id[0],flash->id.id[1],flash->id.id[2],flash->id.id[3],flash->id.id[4],flash->id.id[5],flash->id.id[6],flash->id.id[7]); 
+    ADD("MAC    %02X:%02X:%02X:%02X:%02X:%02X\n",flash->net_info.mac[0],flash->net_info.mac[1],flash->net_info.mac[2],flash->net_info.mac[3],flash->net_info.mac[4],flash->net_info.mac[5]); 
+    ADD("IP     %d.%d.%d.%d\n",flash->net_info.ip[0],flash->net_info.ip[1],flash->net_info.ip[2],flash->net_info.ip[3]); 
+    ADD("SUBNET %d.%d.%d.%d\n",flash->net_info.sn[0],flash->net_info.sn[1],flash->net_info.sn[2],flash->net_info.sn[3]); 
+    ADD("GATWAY %d.%d.%d.%d\n",flash->net_info.gw[0],flash->net_info.gw[1],flash->net_info.gw[2],flash->net_info.gw[3]); 
+    ADD("DNS    %d.%d.%d.%d\n",flash->net_info.dns[0],flash->net_info.dns[1],flash->net_info.dns[2],flash->net_info.dns[3]); 
+    ADD("DHCP   %s\n",flash->net_info.dhcp == NETINFO_DHCP ? "DHCP" : "STATIC"); 
     return p-str;
 }

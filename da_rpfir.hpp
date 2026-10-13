@@ -107,7 +107,7 @@ using namespace DAES67;
 #define     SAMPLE_RATE     (48000)                                        // The audio sample rate
 
 #define     I2S_TEST_TONE_ENABLE  0
-#define     I2S_TEST_TONE_DB     -10.0F
+#define     I2S_TEST_TONE_DB     -4.0F
 
 void test_tone_set_db(float db);
 float test_tone_get_db();
@@ -123,8 +123,13 @@ float test_tone_get_db();
 //#define     FILTER_1         SGR_Low_LR4    
 //#define    FILTER_0         SGR_High_Glenn  
 //#define    FILTER_1         SGR_Mid_Glenn   
-#define FILTER_0         Passthrough
-#define FILTER_1         Passthrough
+
+//#define FILTER_0         Passthrough
+//#define FILTER_1         Passthrough
+
+#define     FILTER_0         Mid_LR4    
+#define     FILTER_1         High_LR4   
+
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -186,7 +186,7 @@ function updateA2B() {
             const inputCurrent = data.a2b_input_current;
             document.getElementById('a2b_text').innerText =
                 '22V Enable GPIO24: ' + (data.a2b_22v ? 'ON' : 'OFF') + '\n\n' +
-                'ICTRL PWM GPIO25:  ' + (data.a2b_ictrl == 0 ? 'DISABLED' : (data.a2b_ictrl == 1 ? 'LOW' : 'HIGH')) + '\n\n' +
+                'ICTRL GPIO10 (pin 14): ' + (data.a2b_ictrl == 0 ? 'FLOAT' : (data.a2b_ictrl == 1 ? 'LOW' : (data.a2b_ictrl == 2 ? 'HIGH' : 'PWM 9% (0.30V)'))) + '\n\n' +
                 'A2B Input Voltage: ' + inputVoltage.toFixed(2) + ' V\n\n' +
                 'A2B Input Current: ' + inputCurrent.toFixed(0) + ' mA\n\n' +
                 'A2B Input Power: ' + (inputVoltage * inputCurrent / 1000).toFixed(2) + ' W\n\n' +
@@ -239,7 +239,18 @@ function updateA2B() {
         .catch(() => { setTimeout(updateA2B, 2000); });
 }
 
+function loadA2BStats(re = true) {
+    fetch('a2b_statistics.txt')
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById('a2b_stats_text').innerText = data;
+            if (re) setTimeout(loadA2BStats, 450);
+        })
+        .catch(() => { if (re) setTimeout(loadA2BStats, 2000); });
+}
+
 updateA2B();
+loadA2BStats();
 )JS";
 
     
@@ -431,11 +442,15 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button><br><br>");
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_disable')\">ICTRL DISABLE</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_low')\">ICTRL LOW</button>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_high')\">ICTRL HIGH</button><br><br>");
+    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_high')\">ICTRL HIGH</button>");
+    ADD("<button class=\"but\" onclick=\"set('a2b_ictrl_pwm_9')\">ICTRL PWM 9% (0.30V)</button><br><br>");
     ADD("<label for=\"tone_volume\">Test tone volume</label> ");
-    ADD("<input id=\"tone_volume\" type=\"range\" min=\"-60\" max=\"0\" step=\"1\" value=\"-10\" onchange=\"setToneVolume(this.value)\">");
-    ADD("<span id=\"tone_volume_value\">-10 dBFS</span><br><br>");
+    ADD("<input id=\"tone_volume\" type=\"range\" min=\"-60\" max=\"0\" step=\"1\" value=\"%d\" onchange=\"setToneVolume(this.value)\">", (int)test_tone_get_db());
+    ADD("<span id=\"tone_volume_value\">%d dBFS</span><br><br>", (int)test_tone_get_db());
     ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
+    ADD("<h3>A2B POWER STATISTICS</h3>");
+    ADD("<button class=\"but\" onclick=\"{ set('a2b_clear'); loadA2BStats(false); }\">CLEAR</button>");
+    ADD("<br><br><div class=\"stat\"><pre id=\"a2b_stats_text\"></pre></div><br>");
     ADD("<button id=\"amp_enable_button\" class=\"but\" onclick=\"enableAmp()\">AMP ENABLE</button>");
     ADD("<button class=\"but\" onclick=\"set('amp_disable')\">AMP DISABLE</button><br><br>");
     ADD("<button class=\"but\" onclick=\"set('amp_tone_on')\">INTERNAL TONE ON</button>");
@@ -469,6 +484,19 @@ int chunk_statistics(int id, int len, char* buf)
         default: return 0;
     }
     return p-buf;
+}
+
+int chunk_a2b_statistics(int id, int len, char* buf)
+{
+    static int32_t step[HTTP_SOCKETS] = {};
+    if (id<0 || id>=HTTP_SOCKETS) return 0;
+    if (len==0 || buf==0) { step[id]=0; return 0; };
+    char *p = buf;
+    int n = step[id]++;
+    if (n==0) ADD("Time %lld\n\n",now_ns()/1000000000LL);
+    int written = a2b_amp_stats_text(n, len, p);
+    if (written==0) return 0;
+    return (p-buf) + written;
 }
 
 int chunk_cpu(int id, int len, char* buf)
@@ -556,6 +584,10 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
         core_stall[0].clear();
         core_stall[1].clear();
     }
+    if (strstr(arg,"a2b_clear"))
+    {
+        a2b_amp_stats_clear();
+    }
     if (strstr(arg,"a2b_22v_on"))
     {
         a2b_22v_enable_set(true);
@@ -575,6 +607,10 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (strstr(arg,"a2b_ictrl_high"))
     {
         a2b_ictrl_set(A2B_ICTRL_HIGH);
+    }
+    if (strstr(arg,"a2b_ictrl_pwm_9"))
+    {
+        a2b_ictrl_set(A2B_ICTRL_PWM_9);
     }
     if (const char *tone_db = strstr(arg,"tone_db="))
     {
@@ -735,6 +771,7 @@ void start_web(void)
 
     server.add_chunked("statistics.txt", chunk_statistics,TYPE_TEXT,true);
     server.add_chunked("cpu", chunk_cpu,TYPE_TEXT,true);
+    server.add_chunked("a2b_statistics.txt", chunk_a2b_statistics,TYPE_TEXT,true);
     server.add_chunked("max98415.txt", chunk_max98415,TYPE_TEXT,false);
 
     char ip[18];

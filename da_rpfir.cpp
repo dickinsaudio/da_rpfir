@@ -57,7 +57,7 @@ int main()
     Notice("SYSTEM POSTDIV1:            %10ld", postdiv1);
     Notice("SYSTEM POSTDIV2:            %10ld", postdiv2);
 
-    char buffer[2048] = {};
+    static char buffer[320];        // flash_state() worst case ~305 chars; static to keep it off core 0's 4KB stack
     flash_state(buffer, sizeof(buffer));
     Notice("%s",buffer);
     
@@ -84,8 +84,8 @@ int main()
         Notice("AMPLIFIER ENABLE FAILED");
     }
 
-    Notice("SETTING AMPLIFIER CURRENT HIGH");
-    a2b_ictrl_set(A2B_ICTRL_HIGH);
+    Notice("SETTING AMPLIFIER CURRENT PWM 9%");
+    a2b_ictrl_set(A2B_ICTRL_PWM_9);
 
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");

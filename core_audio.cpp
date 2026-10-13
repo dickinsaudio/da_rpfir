@@ -47,7 +47,7 @@ int      i2s_out_dma2;
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_in_trigger[I2S_BUFFER/I2S_BLOCK];
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out_trigger[I2S_BUFFER/I2S_BLOCK];
 
-static volatile float test_tone_db;
+static volatile float test_tone_db = I2S_TEST_TONE_DB;
 static void fill_sine_exact_buffer(int32_t *buffer, int frames, int64_t peak)
 {
     const int frames_per_cycle = frames / I2S_SINE_CYCLES;
@@ -317,7 +317,8 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
         float32_t *buf_tmp = buf_y[i];
         memmove(buf_x[i], buf_x[i]+T_FFT, (2*N_FFT -  T_FFT) * sizeof(float32_t));
 
-        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i];
+//        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+i];
+        for (int n=0; n<T_FFT; n++) buf_x[i][2*N_FFT - T_FFT + n] = x[2*n+0];                       // Duplicate left channel for now
         memmove(buf_tmp, buf_x[i], 2*N_FFT*sizeof(float32_t));                                     // Need to put in tmp as FFT is inplace
 
         arm_rfft_fast_f32(&FFT, buf_tmp, buf_X[i][m], 0);
@@ -344,7 +345,7 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 #endif
     for (int n = 0; n < T_FFT; n++)
     {
-        const float gain = 3.0;
+        const float gain = 5.0F;
         float32_t val = *buf1++ * gain;
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
@@ -432,4 +433,3 @@ void __not_in_flash() core_audio()
         }
     }
 }
-
