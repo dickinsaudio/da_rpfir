@@ -33,6 +33,10 @@ extern "C" {
 #include "wizchip_spi.h"
 }
 
+#ifdef A2B_TUNNEL
+#include "a2b_tunnel.h"
+#endif
+
 #define SOCK 4
 
 static void wizchip_read_burst(uint8_t *pBuf, uint16_t len)
@@ -110,6 +114,14 @@ void w5500_startup(void)
     Notice("INITIALIZING SPI AND W5500");
     wizchip_spi_initialize();           // NOTE MAKE SURE TO PATCH THIS TO BE 36Mhz not 5Mhz SPI
     wizchip_reset();
+#ifdef A2B_TUNNEL
+    if (!a2b_tunnel_w5500_present())    // No W5500 fitted - web server runs over the A2B I2C tunnel only
+    {
+        Notice("NO W5500 FOUND - STARTING A2B I2C TUNNEL");
+        a2b_tunnel_start(false);
+        return;
+    }
+#endif
     Notice("SPI BAUDRATE                %10d",   spi_get_baudrate(SPI_PORT));
     Notice("WIZCHIP RESET - WAITING FOR PHY LINK");    
     Notice("WIZCHIP RESET - WAITING FOR PHY LINK");    
@@ -130,6 +142,10 @@ void w5500_startup(void)
     setSIR(0x10);                   // Enable socket 4 interrupt (disable any others)
     setRTR(4000);                   // Set the retransmission time to 400ms (in case we go global)
     setRCR(3);                      // Set the retransmission count to 4
+
+#ifdef A2B_TUNNEL
+    a2b_tunnel_start(true);         // Real W5500 plus the tunnel on its own socket(s)
+#endif
 }
 
 extern "C" {
@@ -145,6 +161,9 @@ static bool w5500_dhcp_timer(struct repeating_timer *timer)
 
 void w5500_dhcp(void)
 {
+#ifdef A2B_TUNNEL
+    if (a2b_tunnel_only()) return;      // No network to ask
+#endif
     uint8_t buffer[768] __attribute__((aligned(4))) = {};   // OK on stack as only used pre startup
     reg_dhcp_cbfunc(0, 0, 0);           // Use default callbacks that will set the IP if we get one
     struct repeating_timer timer;

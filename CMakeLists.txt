@@ -186,6 +186,18 @@ Target_sources(da_rpfir   PRIVATE
                             peripherals.cpp
                             )
 
+# A2B I2C web tunnel (experimental) - virtual W5500 sockets over the A2B remote I2C
+option(A2B_TUNNEL "Enable the A2B I2C web tunnel" ON)
+if(A2B_TUNNEL)
+    target_sources(da_rpfir PRIVATE
+                            a2b_tunnel/vw5500.c
+                            a2b_tunnel/tunnel_proto.c
+                            a2b_tunnel/a2b_tunnel_rp2350.c
+                            )
+    target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/a2b_tunnel)
+    target_compile_definitions(da_rpfir PRIVATE A2B_TUNNEL=1)
+endif()
+
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)
 
 
