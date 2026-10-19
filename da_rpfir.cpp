@@ -70,6 +70,7 @@ int main()
     Notice("WAITING 1 SECOND BEFORE ENABLING 22V");
     sleep_ms(1000);
     Notice("ENABLING 22V");
+    a2b_amp_stats_clear();
     a2b_22v_enable_set(true);
 
     Notice("WAITING 1 SECOND FOR 22V RAIL");
