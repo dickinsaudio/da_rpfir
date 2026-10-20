@@ -6,7 +6,7 @@
  * Runs the real daes67_lite HttpServer (PICO_BUILD path, i.e. the W5500
  * register level code) and the real WIZnet ioLibrary against the virtual
  * W5500, with the tunnel protocol driven from a TCP socket that stands in
- * for the A2B I2C link (SimTransport framing in host/transports.py):
+ * for the A2B I2C link (SimTransport framing, see a2b_master reference/transports.py):
  *
  *   request  [kind 'W'|'R'][node][wlen u16][rlen u16][wdata]
  *   response [0 ack | 1 nack][rdata]
