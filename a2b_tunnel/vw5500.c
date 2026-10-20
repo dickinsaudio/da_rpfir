@@ -160,8 +160,16 @@ static void command(vsock_t *s, uint8_t cmd)
                 default:   s->sr = ST_CLOSED; break;
             }
             s->ir = 0;
-            reset_rx(s);
-            if (!(s->flags & VW_FLAG_CONN_ACTIVE)) reset_tx(s);   // A lingering connection keeps its TX data
+            if (s->flags & VW_FLAG_CONN_ACTIVE)             // Lingering: keep the stream positions the PC
+            {                                               // sees, drop unread RX, keep TX for draining
+                s->rx_rd = s->rx_wr;
+                wr16(&s->reg[SN_RX_RD], s->rx_wr);
+            }
+            else
+            {
+                reset_rx(s);
+                reset_tx(s);
+            }
             break;
 
         case CMD_LISTEN:
