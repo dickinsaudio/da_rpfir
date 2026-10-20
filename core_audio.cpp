@@ -22,19 +22,16 @@
 #define     I2S_CHANS       2                   // Number of I2S channels to output
 #define     I2S_BLOCK       2048                // Number of samples at that we lump into each ISR call
 #define     I2S_BUFFER      2*I2S_BLOCK         // Number of samples at in the ring buffer  (I2S_BUFFER / I2S_BLOCK must be power of two)
-#define     I2S_TEST_BUFFER I2S_BLOCK
 #define     I2S_PIO         pio0                // PIO to use for I2S in and out
 #define     I2S_OUT_SM      0                   // State machine for I2S output
 #define     I2S_IN_SM       2                   // State machine for I2S input
 #define     I2S_TRIG_RING   3                   // Bit mask for trigger ring buffer - log2(BUFFER/BLOCK*4)
-#define     I2S_SINE_CYCLES  2
 
 #include <cassert>
 static_assert((1 << I2S_TRIG_RING) == (I2S_BUFFER / I2S_BLOCK * 4), "I2S_TRIG_RING must be log2(I2S_BUFFER / I2S_BLOCK * 4)");
 
 int32_t     i2s_in [I2S_CHANS*I2S_BUFFER] = {};
 int32_t     i2s_out[I2S_CHANS*I2S_BUFFER] = {};
-int32_t     test_tone_buffer[I2S_CHANS*I2S_TEST_BUFFER] = {};
 
 int32_t  audio_in_peaks[2];              // The output audio meters
 int32_t  audio_out_peaks[2];             // The output audio meters
@@ -46,32 +43,6 @@ int      i2s_out_dma2;
 
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_in_trigger[I2S_BUFFER/I2S_BLOCK];
 int32_t __aligned(I2S_BUFFER/I2S_BLOCK*4) i2s_out_trigger[I2S_BUFFER/I2S_BLOCK];
-
-static volatile float test_tone_db = I2S_TEST_TONE_DB;
-static void fill_sine_exact_buffer(int32_t *buffer, int frames, int64_t peak)
-{
-    const int frames_per_cycle = frames / I2S_SINE_CYCLES;
-
-    for (int frame = 0; frame < frames; ++frame)
-    {
-        const int cycle_frame = frame % frames_per_cycle;
-        const float phase = 2.0F * (float)M_PI * cycle_frame / frames_per_cycle;
-        const int32_t sample = (int32_t)(peak * sinf(phase));
-        buffer[I2S_CHANS * frame] = sample;
-        buffer[I2S_CHANS * frame + 1] = sample;
-    }
-}
-
-static void __not_in_flash_func(copy_tone_to_dma_buffer)(int32_t *destination, float gain)
-{
-    for (int sample = 0; sample < I2S_CHANS * I2S_TEST_BUFFER; ++sample)
-    {
-        int64_t value = (int64_t)(test_tone_buffer[sample] * gain);
-        if (value > INT32_MAX) value = INT32_MAX;
-        if (value < INT32_MIN) value = INT32_MIN;
-        destination[sample] = (int32_t)value;
-    }
-}
 
 Histogram i2s_dma_timing("I2S DMA Timing", 0, .050F);
 Histogram i2s_dma_execution("I2S DMA Execution", 0, .050F);
@@ -88,11 +59,6 @@ void __not_in_flash() i2s_dma_handler(void)
     int32_t *in_ptr = &i2s_in[buffer*I2S_CHANS*I2S_BLOCK];
     int32_t *out_ptr = &i2s_out[buffer*I2S_CHANS*I2S_BLOCK];
 
-#if I2S_TEST_TONE_ENABLE
-    const float gain = powf(10.0F, test_tone_db / 20.0F);
-    copy_tone_to_dma_buffer(out_ptr, gain);
-#endif
-
     int32_t *p = in_ptr;
     for (int n = 0; n < I2S_BLOCK; n++) 
     {
@@ -102,10 +68,8 @@ void __not_in_flash() i2s_dma_handler(void)
         if (audio_in_peaks[1] < val)               audio_in_peaks[1] = val;
     }
     
-#if !I2S_TEST_TONE_ENABLE
     //memcpy(out_ptr, in_ptr, I2S_CHANS*I2S_BLOCK*sizeof(int32_t));   // Loopback
     fir_compute(in_ptr, out_ptr);
-#endif
 
     p = out_ptr;
     for (int n = 0; n < I2S_BLOCK; n++) 
@@ -123,14 +87,6 @@ void i2s_setup()
 {
     Notice("SETTING UP I2S DMA");
 
-#if I2S_TEST_TONE_ENABLE
-    test_tone_set_db(I2S_TEST_TONE_DB);
-    fill_sine_exact_buffer(test_tone_buffer, I2S_TEST_BUFFER, INT32_MAX);
-    copy_tone_to_dma_buffer(i2s_out, powf(10.0F, test_tone_db / 20.0F));
-    Notice("I2S TEST BIPOLAR EXACT SINE: %.3f Hz, source peak +/-0x%08lx",
-           (float)I2S_SINE_CYCLES * SAMPLE_RATE / I2S_TEST_BUFFER,
-           (unsigned long)INT32_MAX);
-#endif
     
     pio_clear_instruction_memory(I2S_PIO);
     uint offset = pio_add_program(I2S_PIO, &i2s_bclk_slave_out_program);
@@ -216,17 +172,7 @@ void i2s_setup()
     //for (int n=0; n<I2S_BLOCK*I2S_CHANS; n++) i2s_out[n+I2S_BLOCK*I2S_CHANS] = -int32_t(0x40000000);
 }
 
-void test_tone_set_db(float db)
-{
-    if (db < -60.0F) db = -60.0F;
-    if (db > 0.0F) db = 0.0F;
-    test_tone_db = db;
-}
 
-float test_tone_get_db()
-{
-    return test_tone_db;
-}
  
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -354,6 +354,24 @@ void unescape_http_url(char * url)
 	url[x] = '\0';
 }
 
+#define REQUEST_GAP_NS  1000000000LL       // Give up waiting for the rest of a request after 1 s of silence
+
+// True once the request headers have ended and any small body (Content-Length) has arrived.
+// A large body (upload) is streamed after parsing, so only the headers are needed for that.
+static bool request_complete(const char *req)
+{
+    const char *end = strstr(req, "\r\n\r\n");
+    if (!end) return false;
+    const char *cl = nullptr;
+    for (const char *h = req; h < end && !cl; h++)              // Case-insensitive find (no strcasestr on newlib)
+        if (strncasecmp(h, "Content-Length:", 15) == 0) cl = h;
+    if (!cl) return true;
+    long body = strtol(cl + 15, nullptr, 10);
+    long have = (long)strlen(end + 4);
+    long room = HttpServer::request_room() - (long)(end + 4 - req);
+    return have >= body || body > room;
+}
+
 bool HttpServer::tick()
 {
     bool work = false;
@@ -479,8 +497,9 @@ bool HttpServer::tick()
                 int len = ready_in(sock[s].sock);
                 if (len>0)
                 {
+                    sock[s].request_rx = now_ns();
 #ifndef PICO_BUILD
-                    sock[s].last_active = now_ns();
+                    sock[s].last_active = sock[s].request_rx;
 #endif
                     sock[s].state  = socket_t::REQUEST;
                     sock[s].remain = MAX_REQUEST_SIZE;
@@ -506,8 +525,9 @@ bool HttpServer::tick()
                 if (len > 0)
                 {
                     work = true;
+                    sock[s].request_rx = now_ns();
 #ifndef PICO_BUILD
-                    sock[s].last_active = now_ns();
+                    sock[s].last_active = sock[s].request_rx;
 #endif
                     if (len > sock[s].remain) len = sock[s].remain;
                     if (len > MAX_RECV_SIZE)  len = MAX_RECV_SIZE;
@@ -523,7 +543,11 @@ bool HttpServer::tick()
                         sock[s].state = socket_t::CLOSED;
                     }
                 }
-                if (len==0 || sock[s].remain==0)        // If we have a full request, move to parsing
+                // Parse once the request is complete, the buffer is full, or nothing has arrived for a
+                // while. "No data right now" is not the end of a request on a slow link (the A2B I2C
+                // tunnel delivers it in 32 byte pieces, so e.g. "?a2b_current_limit_ma=400" arrived as "=40").
+                if (sock[s].state == socket_t::REQUEST &&
+                    (sock[s].remain==0 || request_complete(buffer[s]) || now_ns() - sock[s].request_rx > REQUEST_GAP_NS))
                 {
                     sock[s].state = socket_t::PARSING;
                 }

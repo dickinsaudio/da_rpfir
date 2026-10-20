@@ -40,7 +40,11 @@ bool amp_enable();
 bool amp_disable();
 bool max98415_set_amplifier_channels(bool amp_a, bool amp_b);
 bool max98415_internal_tone_enable(bool enable);
+bool max98415_internal_tone_toggle();
+// Summary for the amp page (state, tone, channels, PVDD, die temperatures; supply/clock raw for faults).
+// Reads the amp now, in one I2C master window - call only when the page is loaded.
 bool max98415_read_status(max98415_status_t *status);
+
 size_t max98415_register_count();
 int max98415_format_register(size_t index, char *buffer, size_t length, bool *read_ok);
 int max98415_format_register_value(size_t index, char *buffer, size_t length, bool *read_ok);

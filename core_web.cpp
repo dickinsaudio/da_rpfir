@@ -29,6 +29,9 @@
 #include "a2b_amp.hpp"
 #include "max98415.hpp"
 #include "peripherals.hpp"
+#ifdef A2B_TUNNEL
+#include "a2b_tunnel.h"
+#endif
 #include <vector>
 #include <algorithm> 
 #include <numeric>
@@ -79,6 +82,7 @@ static char __in_flash() page_prefix[] =
         "<button class=\"mbut\" onclick=\"location.href='statistics.html'\">STATISTICS</button>"
         "<button class=\"mbut\" onclick=\"location.href='a2b_amp.html'\">A2B AMP</button>"
         "<button class=\"mbut\" onclick=\"location.href='system.html'\">SYSTEM</button>"
+        "<button class=\"mbut\" onclick=\"reboot()\">REBOOT</button>"
         "<button class=\"mbut\" onclick=\"bootloader()\">USB BOOT</button>"
     "</div>"
     "<progress id=\"I0\" class=\"bar\" value=\"0\" max=\"1000\"></progress><br>"
@@ -98,7 +102,7 @@ static char __in_flash() page_scripts[] =
                 "document.getElementById('I1').value = data.I1;"
                 "document.getElementById('O0').value = data.O0;"
                 "document.getElementById('O1').value = data.O1;"
-                "setTimeout(updateMeters,50);})"
+                "setTimeout(updateMeters,100);})"
             ".catch(err => { setTimeout(updateMeters,2000); });"
     "}"
     "document.addEventListener('DOMContentLoaded', updateMeters);"
@@ -153,8 +157,8 @@ function enableAmp() {
     button.disabled = true;
     output.innerText = 'Resetting and enabling MAX98415...';
     fetch('set?amp_enable')
-        .catch(() => { output.innerText = 'AMP ENABLE request failed.'; })
-        .finally(() => { button.disabled = false; });
+        .then(() => window.location.reload())                   // Page load re-reads the amp status
+        .catch(() => { output.innerText = 'AMP ENABLE request failed.'; button.disabled = false; });
 }
 
 function dumpMAX98415() {
@@ -169,26 +173,9 @@ function dumpMAX98415() {
         .finally(() => { button.disabled = false; });
 }
 
-function setToneVolume(value) {
-    document.getElementById('tone_volume_value').innerText = value + ' dBFS';
-    fetch('set?tone_db=' + encodeURIComponent(value));
-}
 
-function hex(value, width) {
-    return value.toString(16).toUpperCase().padStart(width, '0');
-}
-
-function setCurrentLimit() {
-    const input = document.getElementById('current_limit');
-    if (!input.reportValidity()) return;
-    const result = document.getElementById('current_limit_result');
-    fetch('set?a2b_current_limit_ma=' + encodeURIComponent(input.value))
-        .then(response => {
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            return response.text();
-        })
-        .then(text => { result.innerText = text; })
-        .catch(error => { result.innerText = 'Current limit request failed: ' + error.message; });
+function setLimit(ma) {
+    fetch('set?a2b_current_limit_ma=' + ma);                   // Status panel shows the new limit on its next update
 }
 
 function updateA2B() {
@@ -196,57 +183,14 @@ function updateA2B() {
         .then(response => response.json())
         .then(data => {
             const inputVoltage = data.a2b_bus_voltage;
-            const inputCurrent = data.a2b_input_current;
+            const inputCurrent = data.a2b_input_current_avg;           // ~1 s average
             document.getElementById('a2b_text').innerText =
-                '22V Enable GPIO24: ' + (data.a2b_22v ? 'ON' : 'OFF') + '\n\n' +
-                'ICTRL GPIO10 (pin 14): PWM, nominal limit ' + data.a2b_current_limit_ma.toFixed(1) + ' mA\n\n' +
+                '22V ' + (data.a2b_22v ? 'ON' : 'OFF') + '\u00a0\u00a0\u00a0\u00a0\u00a0LIMIT ' + data.a2b_current_limit_ma.toFixed(0) + ' mA\n\n' +
                 'A2B Input Voltage: ' + inputVoltage.toFixed(2) + ' V\n\n' +
                 'A2B Input Current: ' + inputCurrent.toFixed(0) + ' mA\n\n' +
                 'A2B Input Power: ' + (inputVoltage * inputCurrent / 1000).toFixed(2) + ' W\n\n' +
                 'A2B Amp Voltage: ' + data.a2b_amp_voltage.toFixed(2) + ' V';
-            document.getElementById('tone_volume').value = data.test_tone_db;
-            document.getElementById('tone_volume_value').innerText = data.test_tone_db + ' dBFS';
 
-            const ampStatus = document.getElementById('amp_status_text');
-            if (!data.max98415_online) {
-                ampStatus.innerText = 'MAX98415: NO I2C RESPONSE' +
-                    (data.max98415_enable_result === 0 ? '\nLast enable attempt failed.' : '');
-            } else {
-                const supplyFault = (data.max98415_supply_raw & 0x37) !== 0;
-                const clockFault = (data.max98415_clock_raw & 0x03) !== 0;
-                const operatingState = data.max98415_enabled
-                    ? (supplyFault ? 'SUPPLY FAULT (EN REQUESTED)'
-                        : (clockFault ? 'CLOCK FAULT (EN REQUESTED)' : 'ENABLED'))
-                    : 'DISABLED';
-                const pvdd = data.max98415_pvdd_valid
-                    ? data.max98415_pvdd.toFixed(2) + ' V'
-                    : 'Unavailable (raw 0x' + hex(data.max98415_pvdd_adc_raw, 3) + ')';
-                const tempA = data.max98415_temp_a_valid
-                    ? data.max98415_temp_a.toFixed(1) + ' C'
-                    : 'Unavailable (raw 0x' + hex(data.max98415_temp_a_adc_raw, 3) + ')';
-                const tempB = data.max98415_temp_b_valid
-                    ? data.max98415_temp_b.toFixed(1) + ' C'
-                    : 'Unavailable (raw 0x' + hex(data.max98415_temp_b_adc_raw, 3) + ')';
-                ampStatus.innerText =
-                    'MAX98415: ' + operatingState + '\n\n' +
-                    'Internal Tone: ' + (data.max98415_internal_tone ? 'ON' : 'OFF') + '\n\n' +
-                    'Amplifier Channels: 0x' + hex(data.max98415_channel_enables, 2) + '\n\n' +
-                    'Internal PVDD: ' + pvdd + '\n\n' +
-                    'Amp A Die Temperature: ' + tempA + '\n\n' +
-                    'Amp B Die Temperature: ' + tempB + '\n\n' +
-                    'Supply Raw/State: 0x' + hex(data.max98415_supply_raw, 2) + '/0x' + hex(data.max98415_supply_state, 2) + '\n\n' +
-                    'Power Raw/State: 0x' + hex(data.max98415_power_raw, 2) + '/0x' + hex(data.max98415_power_state, 2) + '\n\n' +
-                    'Clock Raw/State: 0x' + hex(data.max98415_clock_raw, 2) + '/0x' + hex(data.max98415_clock_state, 2) + '\n\n' +
-                    'Amplifier Fault Raw/State: 0x' + hex(data.max98415_fault_raw, 2) + '/0x' + hex(data.max98415_fault_state, 2) + '\n\n' +
-                    'Amp A Thermal Raw/State: 0x' + hex(data.max98415_temp_a_raw, 2) + '/0x' + hex(data.max98415_temp_a_state, 2) + '\n\n' +
-                    'Amp B Thermal Raw/State: 0x' + hex(data.max98415_temp_b_raw, 2) + '/0x' + hex(data.max98415_temp_b_state, 2) +
-                    (data.max98415_enable_result === 0
-                        ? '\n\nLast enable failed at 0x' + hex(data.max98415_failure_register, 4) +
-                          ': expected 0x' + hex(data.max98415_failure_expected, 2) +
-                          ', read 0x' + hex(data.max98415_failure_actual, 2) +
-                          (data.max98415_failure_write_ok ? ' (write ACK)' : ' (write NACK)')
-                        : '');
-            }
             setTimeout(updateA2B, 500);
         })
         .catch(() => { setTimeout(updateA2B, 2000); });
@@ -263,6 +207,14 @@ function loadA2BStats(re = true) {
 }
 
 updateA2B();
+
+function updateAmp() {                                          // MAX98415 summary, refreshed every second
+    fetch('amp_status')
+        .then(response => response.text())
+        .then(text => { document.getElementById('amp_status_text').innerHTML = text; setTimeout(updateAmp, 1000); })
+        .catch(() => { setTimeout(updateAmp, 2000); });
+}
+setTimeout(updateAmp, 1000);
 loadA2BStats();
 )JS";
 
@@ -445,6 +397,44 @@ const char *cgi_statistics(const char* name, const char* arg, int len, char *buf
 // A2B AMP PAGE
 //
 
+static int amp_enable_result = -1;         // Result of the last AMP ENABLE from the web page (-1 none)
+
+// MAX98415 summary (state, tone, channels, PVDD, die temperatures). Reads the amp - used for the
+// amp page and its 1 s refresh (amp_status), so the amp is only touched while that page is open.
+static void amp_status_add(char *&p, int &len)
+{
+    max98415_status_t amp;
+    if (max98415_read_status(&amp))
+    {
+        bool supply_fault = (amp.supply_raw & 0x37) != 0;
+        bool clock_fault  = (amp.clock_raw & 0x03) != 0;
+        ADD("MAX98415: %s<br><br>", !amp.enabled ? "DISABLED" : supply_fault ? "SUPPLY FAULT (EN REQUESTED)"
+                                  : clock_fault ? "CLOCK FAULT (EN REQUESTED)" : "ENABLED");
+        ADD("Internal Tone: %s<br><br>", amp.internal_tone_enabled ? "ON" : "OFF");
+        ADD("Amplifier Channels: 0x%02X<br><br>", amp.amplifier_enables);
+        if (amp.pvdd_valid) { ADD("Internal PVDD: %.2f V<br><br>", amp.pvdd_voltage); }
+        else { ADD("Internal PVDD: Unavailable (raw 0x%03X)<br><br>", amp.pvdd_raw); }
+        if (amp.amp_a_temperature_valid) { ADD("Amp A Die Temperature: %.1f C<br><br>", amp.amp_a_temperature); }
+        else { ADD("Amp A Die Temperature: Unavailable (raw 0x%03X)<br><br>", amp.amp_a_temperature_raw); }
+        if (amp.amp_b_temperature_valid) { ADD("Amp B Die Temperature: %.1f C", amp.amp_b_temperature); }
+        else { ADD("Amp B Die Temperature: Unavailable (raw 0x%03X)", amp.amp_b_temperature_raw); }
+    }
+    else { ADD("MAX98415: NO I2C RESPONSE"); }
+    if (amp_enable_result == 0)
+    {
+        ADD("<br><br>Last enable failed at 0x%04X: expected 0x%02X, read 0x%02X (%s)", amp.enable_failure_register,
+            amp.enable_failure_expected, amp.enable_failure_actual, amp.enable_failure_write_ok ? "write ACK" : "write NACK");
+    }
+}
+
+const char *cgi_amp_status(const char* name, const char* arg, int len, char *buf)
+{
+    if (!buf || len == 0) return "";
+    char *p = buf;
+    amp_status_add(p, len);
+    return buf;
+}
+
 const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
 {
     if (!name || !arg || len==0 || !buf) return "";
@@ -452,28 +442,26 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     ADD("<title>%s</title>",flash->name);
     ADD("<h2>A2B AMP</h2>");
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_on')\">22V ON</button>");
-    ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button><br><br>");
-    ADD("<label for=\"current_limit\">Current limit (mA)</label> ");
-    ADD("<input id=\"current_limit\" type=\"number\" min=\"%.0f\" max=\"%.0f\" step=\"1\" value=\"%.0f\" required>",
-        ceilf(a2b_current_limit_min()), floorf(a2b_current_limit_max()), roundf(a2b_current_limit_get()));
-    ADD("<button class=\"but\" onclick=\"setCurrentLimit()\">SET CURRENT</button>");
-    ADD("<span id=\"current_limit_result\"></span><br><br>");
-    ADD("<label for=\"tone_volume\">Test tone volume</label> ");
-    ADD("<input id=\"tone_volume\" type=\"range\" min=\"-60\" max=\"0\" step=\"1\" value=\"%d\" onchange=\"setToneVolume(this.value)\">", (int)test_tone_get_db());
-    ADD("<span id=\"tone_volume_value\">%d dBFS</span><br><br>", (int)test_tone_get_db());
+    ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button> &nbsp; ");
+    ADD("<button class=\"but\" onclick=\"setLimit(100)\">100mA</button>");
+    ADD("<button class=\"but\" onclick=\"setLimit(200)\">200mA</button>");
+    ADD("<button class=\"but\" onclick=\"setLimit(400)\">400mA</button>");
+    ADD("<button class=\"but\" onclick=\"setLimit(1000)\">1A</button><br><br>");
     ADD("<div id=\"a2b_text\" class=\"livebox\">Loading...</div>");
     ADD("<h3>A2B POWER STATISTICS</h3>");
     ADD("<button class=\"but\" onclick=\"{ set('a2b_clear'); loadA2BStats(false); }\">CLEAR</button>");
     ADD("<br><br><div class=\"stat\"><pre id=\"a2b_stats_text\"></pre></div><br>");
-    ADD("<button id=\"amp_enable_button\" class=\"but\" onclick=\"enableAmp()\">AMP ENABLE</button>");
-    ADD("<button class=\"but\" onclick=\"set('amp_disable')\">AMP DISABLE</button><br><br>");
-    ADD("<button class=\"but\" onclick=\"set('amp_tone_on')\">INTERNAL TONE ON</button>");
-    ADD("<button class=\"but\" onclick=\"set('amp_tone_off')\">INTERNAL TONE OFF</button><br><br>");
-    ADD("<button class=\"but\" onclick=\"set('amp_channels_a')\">AMP A ONLY</button>");
-    ADD("<button class=\"but\" onclick=\"set('amp_channels_b')\">AMP B ONLY</button>");
-    ADD("<button class=\"but\" onclick=\"set('amp_channels_both')\">BOTH AMPS</button>");
-    ADD("<button class=\"but\" onclick=\"set('amp_channels_off')\">BOTH OFF</button><br><br>");
-    ADD("<div id=\"amp_status_text\" class=\"livebox\">MAX98415 status loading...</div>");
+    ADD("<b>AMP :</b> ");
+    ADD("<button id=\"amp_enable_button\" class=\"but\" onclick=\"enableAmp()\">ENABLE</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_disable')\">DISABLE</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_channels_a')\">A</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_channels_b')\">B</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_channels_both')\">BOTH</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_channels_off')\">OFF</button>");
+    ADD("<button class=\"but\" onclick=\"setr('amp_tone_toggle')\">TONE</button><br><br>");
+    ADD("<div id=\"amp_status_text\" class=\"livebox\">");
+    amp_status_add(p, len);
+    ADD("</div>");
     ADD("<button id=\"i2c_scan_button\" class=\"but\" onclick=\"scanI2C()\">I2C SCAN</button><br><br>");
     ADD("<div id=\"i2c_scan_text\" class=\"livebox\">Press I2C SCAN to find devices.</div>");
     ADD("<button id=\"max98415_dump_button\" class=\"but\" onclick=\"dumpMAX98415()\">MAX98415 DUMP</button><br><br>");
@@ -578,7 +566,6 @@ int chunk_max98415(int id, int len, char* buf)
 ///////////////////////////ci////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // COMMANDS AND SETTINGS
 //
-static int amp_enable_result = -1;
 
 const char *cgi_set(const char* name, const char* arg, int len, char *buf)
 {
@@ -627,10 +614,6 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
             snprintf(buf, len, "Nominal limit set to %.1f mA.", a2b_current_limit_get());
         return buf;
     }
-    if (const char *tone_db = strstr(arg,"tone_db="))
-    {
-        test_tone_set_db((float)atof(tone_db + 8));
-    }
     if (strstr(arg,"amp_enable"))
     {
         amp_enable_result = amp_enable() ? 1 : 0;
@@ -638,6 +621,10 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (strstr(arg,"amp_disable"))
     {
         amp_disable();
+    }
+    if (strstr(arg,"amp_tone_toggle"))
+    {
+        max98415_internal_tone_toggle();
     }
     if (strstr(arg,"amp_tone_on"))
     {
@@ -696,47 +683,12 @@ const char *cgi_get(const char* name, const char* arg, int len, char *buf)
     }
     if (all || strstr(arg,"a2b"))
     {
-        max98415_status_t amp_status;
-        bool amp_online = max98415_read_status(&amp_status);
         ADD("\"a2b_bus_voltage\":%.2f,", a2b_bus_voltage());
         ADD("\"a2b_amp_voltage\":%.2f,", a2b_amp_voltage());
         ADD("\"a2b_input_current\":%.2f,", a2b_input_current());
+        ADD("\"a2b_input_current_avg\":%.2f,", a2b_input_current_avg());
         ADD("\"a2b_22v\":%d,", a2b_22v_enable_get() ? 1 : 0);
         ADD("\"a2b_current_limit_ma\":%.1f,", a2b_current_limit_get());
-        ADD("\"test_tone_db\":%.1f,", test_tone_get_db());
-        ADD("\"max98415_online\":%d,", amp_online ? 1 : 0);
-        ADD("\"max98415_enable_result\":%d,", amp_enable_result);
-        if (amp_online)
-        {
-            ADD("\"max98415_enabled\":%d,", amp_status.enabled ? 1 : 0);
-            ADD("\"max98415_internal_tone\":%d,", amp_status.internal_tone_enabled ? 1 : 0);
-            ADD("\"max98415_channel_enables\":%u,", amp_status.amplifier_enables);
-            ADD("\"max98415_pvdd_valid\":%d,", amp_status.pvdd_valid ? 1 : 0);
-            ADD("\"max98415_temp_a_valid\":%d,", amp_status.amp_a_temperature_valid ? 1 : 0);
-            ADD("\"max98415_temp_b_valid\":%d,", amp_status.amp_b_temperature_valid ? 1 : 0);
-            ADD("\"max98415_pvdd_adc_raw\":%u,", amp_status.pvdd_raw);
-            ADD("\"max98415_temp_a_adc_raw\":%u,", amp_status.amp_a_temperature_raw);
-            ADD("\"max98415_temp_b_adc_raw\":%u,", amp_status.amp_b_temperature_raw);
-            ADD("\"max98415_pvdd\":%.3f,", amp_status.pvdd_voltage);
-            ADD("\"max98415_temp_a\":%.1f,", amp_status.amp_a_temperature);
-            ADD("\"max98415_temp_b\":%.1f,", amp_status.amp_b_temperature);
-            ADD("\"max98415_supply_raw\":%u,", amp_status.supply_raw);
-            ADD("\"max98415_power_raw\":%u,", amp_status.power_raw);
-            ADD("\"max98415_clock_raw\":%u,", amp_status.clock_raw);
-            ADD("\"max98415_supply_state\":%u,", amp_status.supply_state);
-            ADD("\"max98415_power_state\":%u,", amp_status.power_state);
-            ADD("\"max98415_clock_state\":%u,", amp_status.clock_state);
-            ADD("\"max98415_fault_raw\":%u,", amp_status.amplifier_fault_raw);
-            ADD("\"max98415_fault_state\":%u,", amp_status.amplifier_fault_state);
-            ADD("\"max98415_temp_a_raw\":%u,", amp_status.amp_a_thermal_raw);
-            ADD("\"max98415_temp_a_state\":%u,", amp_status.amp_a_thermal_state);
-            ADD("\"max98415_temp_b_raw\":%u,", amp_status.amp_b_thermal_raw);
-            ADD("\"max98415_temp_b_state\":%u,", amp_status.amp_b_thermal_state);
-            ADD("\"max98415_failure_register\":%u,", amp_status.enable_failure_register);
-            ADD("\"max98415_failure_expected\":%u,", amp_status.enable_failure_expected);
-            ADD("\"max98415_failure_actual\":%u,", amp_status.enable_failure_actual);
-            ADD("\"max98415_failure_write_ok\":%d,", amp_status.enable_failure_write_ok ? 1 : 0);
-        }
     }
     if (all || strstr(arg,"i2c_scan"))
     {
@@ -781,6 +733,7 @@ void start_web(void)
     server.add_cgi("index.html",     cgi_overview);
     server.add_cgi("overview.html",  cgi_overview);
     server.add_cgi("a2b_amp.html",   cgi_a2b_amp);
+    server.add_cgi("amp_status",     cgi_amp_status, false);
     server.add_cgi("statistics.html",cgi_statistics);
     server.add_cgi("system.html",    cgi_sys);
 
@@ -826,6 +779,9 @@ void start_web(void)
         if (now > next_log)
         {
             next_log += 1000000000LL;
+#ifdef A2B_TUNNEL
+            a2b_tunnel_poll();                      // Tunnel / I2C state on the console when it changes
+#endif
         }
 
         if (now > next_peak)

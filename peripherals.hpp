@@ -16,6 +16,9 @@ bool    i2c_write_register16(uint8_t addr, uint16_t reg, uint8_t data);
 void    i2c_write(uint8_t addr, uint8_t reg, uint8_t data);
 int     i2c_scan(uint8_t *addresses, int max_addresses);
 
+void    i2c_bus_begin(void);    // Batch several transactions into one master window
+void    i2c_bus_end(void);
+
 #ifdef __cplusplus
 }
 #endif

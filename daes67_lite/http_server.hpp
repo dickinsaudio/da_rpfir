@@ -71,6 +71,7 @@ namespace DAES67
         int   port;             // The port number to listen in on
         int   sock;             // The socket number
         int   client;           // The client number
+        int64_t request_rx;     // Time the last piece of the current request arrived
 #ifndef PICO_BUILD
         bool  keep_alive;       // True if we should keep the connection alive
         int64_t last_active;    // Last time we saw activity on this socket
@@ -124,6 +125,9 @@ namespace DAES67
         static const int MAX_RECV_SIZE = 1024;
 #endif
         static const int MAX_REQUEST_SIZE = BUFFER_SIZE - 1;
+    public:
+        static int request_room() { return MAX_REQUEST_SIZE; }
+    private:
         content_t content[MAX_CONTENT];
     public:
         socket_t  sock[MAX_SOCKETS];

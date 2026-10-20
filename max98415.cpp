@@ -357,24 +357,16 @@ bool max98415_read_status(max98415_status_t *status)
     uint8_t global_enable = 0;
     uint8_t tone_enable = 0;
     uint8_t amplifier_enables = 0;
+    i2c_bus_begin();                                        // One master window for all the reads below
     bool ok = read_9_bit(MAX98415_REG_PVDD_MSB, MAX98415_REG_PVDD_LSB, &pvdd) &&
               read_9_bit(MAX98415_REG_AMP_A_TEMPERATURE_MSB, MAX98415_REG_AMP_A_TEMPERATURE_LSB, &amp_a_temperature) &&
               read_9_bit(MAX98415_REG_AMP_B_TEMPERATURE_MSB, MAX98415_REG_AMP_B_TEMPERATURE_LSB, &amp_b_temperature) &&
               i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_SUPPLY_INTERRUPT_RAW, &status->supply_raw) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_POWER_INTERRUPT_RAW, &status->power_raw) &&
               i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_CLOCK_INTERRUPT_RAW, &status->clock_raw) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMPLIFIER_FAULT_RAW, &status->amplifier_fault_raw) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMP_A_THERMAL_RAW, &status->amp_a_thermal_raw) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMP_B_THERMAL_RAW, &status->amp_b_thermal_raw) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_SUPPLY_INTERRUPT_STATE, &status->supply_state) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_POWER_INTERRUPT_STATE, &status->power_state) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_CLOCK_INTERRUPT_STATE, &status->clock_state) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMPLIFIER_FAULT_STATE, &status->amplifier_fault_state) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMP_A_THERMAL_STATE, &status->amp_a_thermal_state) &&
-              i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMP_B_THERMAL_STATE, &status->amp_b_thermal_state) &&
               i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_TONE_ENABLE, &tone_enable) &&
               i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_AMP_ENABLES, &amplifier_enables) &&
               i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_GLOBAL_ENABLE, &global_enable);
+    i2c_bus_end();
     if (!ok) return false;
 
     status->online = true;
@@ -506,4 +498,15 @@ int max98415_format_register(size_t index, char *buffer, size_t length, bool *re
     append_reserved_fields(output, remaining, value, named_mask);
     append(output, remaining, "\n");
     return (int)(output - buffer);
+}
+
+// Flip the internal tone generator (one I2C master window)
+bool max98415_internal_tone_toggle()
+{
+    uint8_t tone_enable = 0;
+    i2c_bus_begin();
+    bool ok = i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_TONE_ENABLE, &tone_enable) &&
+              max98415_internal_tone_enable((tone_enable & MAX98415_TONE_ENABLE) == 0);
+    i2c_bus_end();
+    return ok;
 }

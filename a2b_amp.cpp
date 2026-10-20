@@ -38,6 +38,8 @@ static constexpr float s_ictrl_ma_per_volt = 1000.0F / (s_ictrl_rsens * s_ictrl_
 #define A2B_BUS_ADC_SCALE ((200.0F + 22.1F)/22.1F)
 #define A2B_AMP_ADC_SCALE ((200.0F + 22.1F)/22.1F)
 #define A2B_CURRENT_ADC_SCALE 2000.0f
+#define A2B_CURRENT_FLOOR_ON_MA   40.0f // Lowest real input current with 22V on - below this is sense offset
+#define A2B_CURRENT_FLOOR_OFF_MA  20.0f // Input current with 22V off (fixed - the sense output is not valid then)
 
 #define A2B_ADC_VREF 3.3f
 #define A2B_ADC_MAX 4095.0f
@@ -58,6 +60,7 @@ static Histogram s_adc_time    ("A2B ADC IRQ (s)",0, .002);
 
 static bool s_a2b_adc_initialized = false;
 static float s_a2b_current_limit_ma = 0.0F;
+static volatile float s_current_avg_ma;             // First order, ~1 s time constant, updated with the histograms
 
 static uint32_t __aligned(8) s_adc_trigger;         // Address reloaded into DMA1 write address by DMA2
 static int16_t  __aligned(8) s_adc_samples[4];      // Raw samples written by DMA1
@@ -81,7 +84,16 @@ static void __not_in_flash_func(a2b_adc_isr)()
 
     s_adc_time.time();
     s_bus_hist.add    (adc_smoothed_scaled(A2B_BUS_SLOT,     A2B_BUS_ADC_SCALE));
-    s_current_hist.add(adc_smoothed_scaled(A2B_CURRENT_SLOT, A2B_CURRENT_ADC_SCALE));
+    // With 22V off the sense output is meaningless - use the fixed off current. With it on, the
+    // reading never goes below the board's real minimum. (The average just settles across a switch.)
+    float current_ma = A2B_CURRENT_FLOOR_OFF_MA;
+    if (gpio_get_out_level(A2B_22V_EN_GPIO))
+    {
+        current_ma = adc_smoothed_scaled(A2B_CURRENT_SLOT, A2B_CURRENT_ADC_SCALE);
+        if (current_ma < A2B_CURRENT_FLOOR_ON_MA) current_ma = A2B_CURRENT_FLOOR_ON_MA;
+    }
+    s_current_hist.add(current_ma);
+    s_current_avg_ma += (current_ma - s_current_avg_ma) * (1.0F / A2B_ADC_LOG_RATE);   // tau = 1 s
     s_amp_hist.add    (adc_smoothed_scaled(A2B_AMP_SLOT,     A2B_AMP_ADC_SCALE));
 }
 
@@ -179,12 +191,12 @@ float a2b_current_limit_max()
 
 bool a2b_current_limit_set(float current_ma)
 {
-    if (!std::isfinite(current_ma) ||
-        current_ma < a2b_current_limit_min() || current_ma > a2b_current_limit_max())
+    if (!std::isfinite(current_ma)) return false;
+    if (current_ma < a2b_current_limit_min() || current_ma > a2b_current_limit_max())
     {
-        Warning("Current limit %.1f mA outside achievable range %.1f..%.1f mA",
+        Warning("Current limit %.1f mA outside achievable range %.1f..%.1f mA - clamped",
                 current_ma, a2b_current_limit_min(), a2b_current_limit_max());
-        return false;
+        current_ma = current_ma < a2b_current_limit_min() ? a2b_current_limit_min() : a2b_current_limit_max();
     }
     a2b_amp_init();
     const float ictl_voltage = current_ma / s_ictrl_ma_per_volt;
@@ -217,6 +229,11 @@ float a2b_amp_voltage()
 float a2b_input_current()
 {
     return s_current_hist.latest();
+}
+
+float a2b_input_current_avg()
+{
+    return s_current_avg_ma;
 }
 
 void a2b_amp_stats_clear()

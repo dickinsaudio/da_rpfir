@@ -54,15 +54,20 @@ void send_rgb(uint8_t r, uint8_t g, uint8_t b) {};
 #define I2C_SPEED 50000
 
 static bool i2c_initialized; 
-auto_init_mutex(i2c_mutex);
+auto_init_recursive_mutex(i2c_mutex);           // Recursive so i2c_bus_begin/end can wrap many transactions
+static int  i2c_depth;                          // Nested master windows (protected by i2c_mutex)
 
 // Called around each master transaction - the A2B tunnel uses these to switch I2C0 out of slave mode
 __attribute__((weak)) void i2c_master_acquire(void) {}
 __attribute__((weak)) void i2c_master_release(void) {}
 
+// Only the outermost window switches the bus to master and back
+static void bus_acquire(void) { if (i2c_depth++ == 0) i2c_master_acquire(); }
+static void bus_release(void) { if (--i2c_depth == 0) i2c_master_release(); }
+
 void i2c_initialize()
 {
-    mutex_enter_blocking(&i2c_mutex);
+    recursive_mutex_enter_blocking(&i2c_mutex);
     if (!i2c_initialized)
     {
         i2c_initialized = true;
@@ -72,7 +77,7 @@ void i2c_initialize()
         gpio_pull_up(PICO_I2C_SCL_PIN);
         gpio_pull_up(PICO_I2C_SDA_PIN);
     }
-    mutex_exit(&i2c_mutex);
+    recursive_mutex_exit(&i2c_mutex);
 }
 
 
@@ -88,19 +93,19 @@ bool i2c_read_register(uint8_t addr, uint8_t reg, uint8_t *data)
     if (!data) return false;
     if (!i2c_initialized) i2c_initialize();
 
-    mutex_enter_blocking(&i2c_mutex);
-    i2c_master_acquire();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
     absolute_time_t t = make_timeout_time_ms(10);
     if (i2c_write_blocking_until(I2C_ID, addr, &reg, 1, true, t) != 1)
     {
-        i2c_master_release();
-        mutex_exit(&i2c_mutex);
+        bus_release();
+        recursive_mutex_exit(&i2c_mutex);
         return false;
     }
     t = make_timeout_time_ms(10);
     bool ok = i2c_read_blocking_until(I2C_ID, addr, data, 1, false, t) == 1;
-    i2c_master_release();
-    mutex_exit(&i2c_mutex);
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
     return ok;
 }
 
@@ -111,8 +116,8 @@ bool i2c_read_register16(uint8_t addr, uint16_t reg, uint8_t *data)
 
     uint8_t address[2] = {(uint8_t)(reg >> 8), (uint8_t)reg};
     bool ok = false;
-    mutex_enter_blocking(&i2c_mutex);
-    i2c_master_acquire();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
     for (int attempt = 0; attempt < 3; ++attempt)
     {
         absolute_time_t timeout = make_timeout_time_ms(10);
@@ -127,8 +132,8 @@ bool i2c_read_register16(uint8_t addr, uint16_t reg, uint8_t *data)
         }
         sleep_us(100);
     }
-    i2c_master_release();
-    mutex_exit(&i2c_mutex);
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
     return ok;
 }
 
@@ -138,11 +143,11 @@ bool i2c_write_register16(uint8_t addr, uint16_t reg, uint8_t data)
 
     uint8_t message[3] = {(uint8_t)(reg >> 8), (uint8_t)reg, data};
     absolute_time_t timeout = make_timeout_time_ms(10);
-    mutex_enter_blocking(&i2c_mutex);
-    i2c_master_acquire();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
     bool ok = i2c_write_blocking_until(I2C_ID, addr, message, sizeof(message), false, timeout) == sizeof(message);
-    i2c_master_release();
-    mutex_exit(&i2c_mutex);
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
     return ok;
 }
 
@@ -151,11 +156,11 @@ void i2c_write(uint8_t addr, uint8_t reg, uint8_t data)
     if (!i2c_initialized) i2c_initialize();
     uint8_t msg[2] = {reg, data};
     absolute_time_t t = make_timeout_time_ms(10);
-    mutex_enter_blocking(&i2c_mutex);
-    i2c_master_acquire();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
     i2c_write_blocking_until(I2C_ID, addr, msg, 2, false, t);
-    i2c_master_release();
-    mutex_exit(&i2c_mutex);
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
 }
 
 int i2c_scan(uint8_t *addresses, int max_addresses)
@@ -164,8 +169,8 @@ int i2c_scan(uint8_t *addresses, int max_addresses)
     if (!i2c_initialized) i2c_initialize();
 
     int count = 0;
-    mutex_enter_blocking(&i2c_mutex);
-    i2c_master_acquire();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
     for (uint8_t addr = 0x08; addr <= 0x77 && count < max_addresses; ++addr)
     {
         uint8_t value;
@@ -175,9 +180,23 @@ int i2c_scan(uint8_t *addresses, int max_addresses)
             addresses[count++] = addr;
         }
     }
-    i2c_master_release();
-    mutex_exit(&i2c_mutex);
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
     return count;
+}
+
+// Hold the bus as master across several transactions (one switch instead of one per read)
+void i2c_bus_begin(void)
+{
+    if (!i2c_initialized) i2c_initialize();
+    recursive_mutex_enter_blocking(&i2c_mutex);
+    bus_acquire();
+}
+
+void i2c_bus_end(void)
+{
+    bus_release();
+    recursive_mutex_exit(&i2c_mutex);
 }
 
 #ifdef __cplusplus

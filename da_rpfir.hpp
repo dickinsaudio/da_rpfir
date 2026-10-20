@@ -106,11 +106,6 @@ using namespace DAES67;
 #define     CLK_SYS         (288000000L)                                    // The system clock frequency
 #define     SAMPLE_RATE     (48000)                                        // The audio sample rate
 
-#define     I2S_TEST_TONE_ENABLE  0
-#define     I2S_TEST_TONE_DB     -4.0F
-
-void test_tone_set_db(float db);
-float test_tone_get_db();
 
 
 //#define     FILTER_0         SGR_High_SGR
