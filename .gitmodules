@@ -10,3 +10,6 @@
 [submodule "extern/CMSIS_5"]
 	path = extern/CMSIS_5
 	url = https://github.com/ARM-software/CMSIS_5
+[submodule "extern/a2b_master"]
+	path = extern/a2b_master
+	url = ../a2b_master

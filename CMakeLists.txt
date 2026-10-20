@@ -186,6 +186,21 @@ Target_sources(da_rpfir   PRIVATE
                             peripherals.cpp
                             )
 
+# A2B I2C web tunnel (experimental) - virtual W5500 sockets over the A2B remote I2C
+option(A2B_TUNNEL "Enable the A2B I2C web tunnel" ON)
+if(A2B_TUNNEL)
+    if(NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/extern/a2b_master/device/vw5500.c)
+        message(FATAL_ERROR "A2B_TUNNEL needs the a2b_master submodule: git submodule update --init extern/a2b_master (or -DA2B_TUNNEL=OFF)")
+    endif()
+    target_sources(da_rpfir PRIVATE
+                            extern/a2b_master/device/vw5500.c
+                            extern/a2b_master/device/tunnel_proto.c
+                            extern/a2b_master/device/a2b_tunnel_rp2350.c
+                            )
+    target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/extern/a2b_master/device)
+    target_compile_definitions(da_rpfir PRIVATE A2B_TUNNEL=1)
+endif()
+
 target_include_directories(da_rpfir PRIVATE ${CMAKE_CURRENT_LIST_DIR}/daes67_lite)
 
 

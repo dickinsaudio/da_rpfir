@@ -78,7 +78,7 @@ inline int ready_out(int sock)          // Faster alternative to GetSn_TX_FSR
         val1 = val0;
         WIZCHIP_READ_BUF(Sn_TX_FSR(sock), (uint8_t *)&val0, 2);
     }
-    return (val0>>8) + (val0<<8);       // Change endianess
+    return (val0>>8) + ((val0&0xFF)<<8);    // Change endianess (mask needed - int promotion keeps the high byte)
 }
 
 
