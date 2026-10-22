@@ -122,8 +122,8 @@ using namespace DAES67;
 //#define FILTER_0         Passthrough
 //#define FILTER_1         Passthrough
 
-#define     FILTER_0         Mid_LR4    
-#define     FILTER_1         High_LR4   
+#define     FILTER_0         A2B_Low    
+#define     FILTER_1         A2B_High
 
 
 

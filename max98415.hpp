@@ -41,6 +41,17 @@ bool amp_disable();
 bool max98415_set_amplifier_channels(bool amp_a, bool amp_b);
 bool max98415_internal_tone_enable(bool enable);
 bool max98415_internal_tone_toggle();
+
+// Preset dynamics (brown-out / limiting). Kept across amp_enable() (which resets the chip).
+enum max98415_dynamics_t
+{
+	MAX98415_DYNAMICS_OFF,          // DHT and BPE off
+	MAX98415_DYNAMICS_BROWNOUT,     // DHT 5% headroom + BPE stepped gain reduction as PVDD falls
+	MAX98415_DYNAMICS_COUNT
+};
+bool max98415_set_dynamics(max98415_dynamics_t dynamics);
+max98415_dynamics_t max98415_get_dynamics();
+const char *max98415_dynamics_name(max98415_dynamics_t dynamics);
 // Summary for the amp page (state, tone, channels, PVDD, die temperatures; supply/clock raw for faults).
 // Reads the amp now, in one I2C master window - call only when the page is loaded.
 bool max98415_read_status(max98415_status_t *status);

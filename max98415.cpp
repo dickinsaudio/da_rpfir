@@ -104,6 +104,76 @@ struct register_value_t
     bool verify = true;
 };
 
+/* MAX98415_DYNAMICS_BROWNOUT - supply-dependent audio limiting (MAX98415A / MAX98425A)
+
+   DHT handles normal peak limiting: the output tracks PVDD with 10% headroom.
+   BPE is only an emergency backstop: it attenuates 0, 3, 6 or 12dB below 7V, 6V, 5V and 4V.
+*/
+static constexpr register_value_t dynamics_off[] = {
+    {MAX98415_REG_BPE_ENABLE, 0x00},
+    {MAX98415_REG_DHT_ENABLE, 0x00},
+};
+
+static constexpr register_value_t dynamics_brownout[] = {
+    /* DHT */
+    {0x2840, 0x00},                     // DRC disabled
+    {0x2841, 0x0C},                     // +10% PVDD headroom
+    {0x2842, 0x00},                     // Supply-tracking distortion limiter
+    {0x2843, 0x14},                     // Maximum DHT attenuation -20 dB
+    {0x2844, 0x04},                     // Attack 320 us/dB
+    {0x2845, 0x07},                     // Release 216 ms/dB
+
+    /* BPE voltage thresholds, 9-bit code x 43.99 mV: MSB = code[8:1], LSB = code[0] */
+    {0x2801, 0x4F}, {0x2802, 0x01},     // L3 159 -> 6.99 V
+    {0x2803, 0x44}, {0x2804, 0x00},     // L2 136 -> 5.98 V
+    {0x2805, 0x39}, {0x2806, 0x00},     // L1 114 -> 5.01 V
+    {0x2807, 0x2D}, {0x2808, 0x01},     // L0  91 -> 4.00 V
+
+    /* BPE dwell / hold */
+    {0x2809, 0x02},                     // L3: 0 ms dwell, 100 ms hold
+    {0x280A, 0x02},                     // L2: 0 ms dwell, 100 ms hold
+    {0x280B, 0x02},                     // L1: 0 ms dwell, 100 ms hold
+    {0x280C, 0x02},                     // L0: 100 ms hold
+
+    /* BPE gain step: 0.125 dB */
+    {0x280D, 0x01},
+    {0x280E, 0x01},
+    {0x280F, 0x01},
+    {0x2810, 0x01},
+
+    /* BPE maximum attenuation */
+    {0x2811, 0x00},                     // L3    0 dB
+    {0x2812, 0x03},                     // L2   -3 dB
+    {0x2813, 0x06},                     // L1   -6 dB
+    {0x2814, 0x0C},                     // L0  -12 dB
+
+    /* BPE gain attack / release */
+    {0x2815, 0x1F},                     // L3: 500 us attack, 50 ms release per step
+    {0x2816, 0x1F},                     // L2
+    {0x2817, 0x1F},                     // L1
+    {0x2818, 0x1F},                     // L0
+
+    {0x2821, 0x05},                     // BPE hysteresis ~0.22 V
+
+    /* Enable after configuration */
+    {MAX98415_REG_BPE_ENABLE, 0x01},    // BPE enabled, BPE limiter disabled
+    {MAX98415_REG_DHT_ENABLE, 0x01},    // DHT enabled
+};
+
+struct dynamics_preset_t
+{
+    const char *name;
+    const register_value_t *table;
+    size_t count;
+};
+
+static constexpr dynamics_preset_t dynamics_presets[MAX98415_DYNAMICS_COUNT] = {
+    {"OFF",      dynamics_off,      sizeof(dynamics_off) / sizeof(dynamics_off[0])},
+    {"BROWNOUT", dynamics_brownout, sizeof(dynamics_brownout) / sizeof(dynamics_brownout[0])},
+};
+
+static max98415_dynamics_t dynamics_current = MAX98415_DYNAMICS_BROWNOUT;   // Default at boot (applied by amp_enable)
+
 static uint16_t enable_failure_register;
 static uint8_t enable_failure_expected;
 static uint8_t enable_failure_actual;
@@ -122,6 +192,8 @@ static bool write_and_verify(uint16_t address, uint8_t value, uint8_t *readback,
     }
     return false;
 }
+
+static bool write_dynamics(max98415_dynamics_t dynamics);
 
 bool amp_enable()
 {
@@ -191,6 +263,11 @@ bool amp_enable()
 
     for (const register_value_t &entry : configuration)
     {
+        if (entry.address == MAX98415_REG_GLOBAL_ENABLE && entry.value == MAX98415_DEVICE_ENABLE &&
+            !write_dynamics(dynamics_current))
+        {
+            return false;                                   // write_dynamics() recorded the failure
+        }
         bool write_ok = false;
         uint8_t readback = 0;
         bool ok = entry.verify
@@ -509,4 +586,61 @@ bool max98415_internal_tone_toggle()
               max98415_internal_tone_enable((tone_enable & MAX98415_TONE_ENABLE) == 0);
     i2c_bus_end();
     return ok;
+}
+
+// Write a preset's registers (device must be disabled). Records the first failure for the page.
+static bool write_dynamics(max98415_dynamics_t dynamics)
+{
+    if (dynamics >= MAX98415_DYNAMICS_COUNT) return false;
+    const dynamics_preset_t &preset = dynamics_presets[dynamics];
+    for (size_t n = 0; n < preset.count; ++n)
+    {
+        uint8_t readback = 0;
+        bool write_ok = false;
+        if (!write_and_verify(preset.table[n].address, preset.table[n].value, &readback, &write_ok))
+        {
+            enable_failure_register = preset.table[n].address;
+            enable_failure_expected = preset.table[n].value;
+            enable_failure_actual = readback;
+            enable_failure_write_ok = write_ok;
+            return false;
+        }
+    }
+    return true;
+}
+
+// Select a dynamics preset. If the amp is running it is disabled for the update and re-enabled.
+bool max98415_set_dynamics(max98415_dynamics_t dynamics)
+{
+    if (dynamics >= MAX98415_DYNAMICS_COUNT) return false;
+    uint8_t readback = 0;
+    bool write_ok = false;
+    uint8_t global_enable = 0;
+    if (!i2c_read_register16(MAX98415_I2C_ADDRESS, MAX98415_REG_GLOBAL_ENABLE, &global_enable))
+    {
+        return false;
+    }
+    bool restore_enable = (global_enable & MAX98415_DEVICE_ENABLE) != 0;
+    if (restore_enable && !write_and_verify(MAX98415_REG_GLOBAL_ENABLE, MAX98415_DEVICE_DISABLE, &readback, &write_ok))
+    {
+        return false;
+    }
+    bool ok = write_dynamics(dynamics);
+    if (ok) dynamics_current = dynamics;
+    if (restore_enable)
+    {
+        ok = write_and_verify(MAX98415_REG_GLOBAL_ENABLE, MAX98415_DEVICE_ENABLE, &readback, &write_ok) && ok;
+        sleep_ms(10);
+    }
+    return ok;
+}
+
+max98415_dynamics_t max98415_get_dynamics()
+{
+    return dynamics_current;
+}
+
+const char *max98415_dynamics_name(max98415_dynamics_t dynamics)
+{
+    return dynamics < MAX98415_DYNAMICS_COUNT ? dynamics_presets[dynamics].name : "?";
 }

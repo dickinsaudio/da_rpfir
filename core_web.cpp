@@ -412,6 +412,7 @@ static void amp_status_add(char *&p, int &len)
                                   : clock_fault ? "CLOCK FAULT (EN REQUESTED)" : "ENABLED");
         ADD("Internal Tone: %s<br><br>", amp.internal_tone_enabled ? "ON" : "OFF");
         ADD("Amplifier Channels: 0x%02X<br><br>", amp.amplifier_enables);
+        ADD("Dynamics: %s<br><br>", max98415_dynamics_name(max98415_get_dynamics()));
         if (amp.pvdd_valid) { ADD("Internal PVDD: %.2f V<br><br>", amp.pvdd_voltage); }
         else { ADD("Internal PVDD: Unavailable (raw 0x%03X)<br><br>", amp.pvdd_raw); }
         if (amp.amp_a_temperature_valid) { ADD("Amp A Die Temperature: %.1f C<br><br>", amp.amp_a_temperature); }
@@ -440,6 +441,14 @@ const char *cgi_a2b_amp(const char* name, const char* arg, int len, char *buf)
     if (!name || !arg || len==0 || !buf) return "";
     char *p = buf;
     ADD("<title>%s</title>",flash->name);
+    ADD("<b>DYNAMICS :</b> ");
+    for (int d = 0; d < MAX98415_DYNAMICS_COUNT; d++)
+    {
+        const char *dn = max98415_dynamics_name((max98415_dynamics_t)d);
+        ADD("<button class=\"but\" onclick=\"setr('amp_dynamics=%s')\">%s%s</button>",
+            dn, d == max98415_get_dynamics() ? "&#10003; " : "", dn);
+    }
+    ADD("<br>");
     ADD("<h2>A2B AMP</h2>");
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_on')\">22V ON</button>");
     ADD("<button class=\"but\" onclick=\"set('a2b_22v_off')\">22V OFF</button> &nbsp; ");
@@ -621,6 +630,21 @@ const char *cgi_set(const char* name, const char* arg, int len, char *buf)
     if (strstr(arg,"amp_disable"))
     {
         amp_disable();
+    }
+    if (const char *dyn = strstr(arg,"amp_dynamics="))
+    {
+        dyn += strlen("amp_dynamics=");
+        for (int d = 0; d < MAX98415_DYNAMICS_COUNT; d++)
+        {
+            const char *dn = max98415_dynamics_name((max98415_dynamics_t)d);
+            size_t n = strlen(dn);
+            if (strncmp(dyn, dn, n) == 0 && (dyn[n] == '\0' || dyn[n] == '&'))
+            {
+                if (!max98415_set_dynamics((max98415_dynamics_t)d))
+                    Warning("MAX98415 dynamics %s: write failed", dn);
+                break;
+            }
+        }
     }
     if (strstr(arg,"amp_tone_toggle"))
     {

@@ -92,33 +92,38 @@ bit1:
 
 .program i2s_bclk_slave_out
 ;
-; Input pin 0 is BCLK, JMP pin is LRCLK, output pin is D0.
+; Input pin 0 is BCLK, input pin 1 is LRCLK (must be BCLK+1), output pin is D0.
 ; Data changes on A2B BCLK falling edges and is sampled on rising edges.
+;
+; Each word's first 31 bits are clocked on counted BCLK falling edges, but its LSB is clocked on
+; the LRCLK edge itself (in I2S LRCLK changes on the same edge as the LSB). So every word
+; re-aligns to LRCLK: a BCLK edge gained or lost when the A2B clocks stop and restart costs at
+; most a frame, instead of shifting the output by a bit (6 dB, then wrapping) for good.
+; No start-up sync is needed - the first LRCLK edge aligns it. One FIFO word per channel, so
+; L/R pairing is kept.
 
 public entry_point:
-wait_lr_high:
-    jmp pin wait_lr_low
-    jmp wait_lr_high
-wait_lr_low:
-    jmp pin wait_lr_low
-    set pins, 0
-    pull block
-    set x, 31
 .wrap_target
-channel_a:
+    pull block                  ; Left word
+    set x, 30
+bits_l:
     wait 1 pin 0
     wait 0 pin 0
+    out pins, 1                 ; MSB .. bit 1 on BCLK falling edges F1..F31
+    jmp x-- bits_l
+    wait 0 pin 1                ; (Already low unless we are behind - then wait a frame)
+    wait 1 pin 1                ; LSB on the LRCLK rising edge (F32)
     out pins, 1
-    jmp x-- channel_a
-    pull block
-    set x, 31
-channel_b:
+    pull block                  ; Right word
+    set x, 30
+bits_r:
     wait 1 pin 0
     wait 0 pin 0
+    out pins, 1                 ; MSB .. bit 1 on F33..F63
+    jmp x-- bits_r
+    wait 1 pin 1
+    wait 0 pin 1                ; LSB on the LRCLK falling edge (F64 = next frame's F0)
     out pins, 1
-    jmp x-- channel_b
-    pull block
-    set x, 31
 .wrap
 
 
@@ -244,6 +249,7 @@ static inline void i2s_follower_out_init(PIO pio, uint8_t sm, int offset, int lr
 
 static inline void i2s_bclk_slave_out_init(PIO pio, uint8_t sm, int offset, int bclk, int lrclk, int dout)
 {
+    hard_assert(lrclk == bclk + 1);         // The program reads LRCLK as input pin 1 (BCLK + 1)
     pio_gpio_init(pio, bclk);
     pio_gpio_init(pio, lrclk);
     pio_gpio_init(pio, dout);

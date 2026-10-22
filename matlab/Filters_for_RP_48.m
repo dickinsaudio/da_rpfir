@@ -8,94 +8,85 @@ Fs = 48000;
 %%
 
 
+
+N = 2048;
+
+% Woofer protection
 F1 = 50;
-O1 = 2;
+O1 = 3;
 
-[b a] = butter(O1,F1/(Fs/2)); 
-h_1l  = impz(conv(b,b),conv(a,a),4096);
-[b a] = butter(O1,F1/(Fs/2),"high"); 
-h_1h  = -impz(conv(b,b),conv(a,a),4096);
+[b,a] = butter(O1,F1/(Fs/2),"high");
+h_protect = impz(conv(b,b),conv(a,a),N);
 
-F2 = 4000;
+
+% Woofer / tweeter crossover
+% Separated LR4 corners for ~2 dB summed dip
+FL = 2450;
+FH = 2950;
 O2 = 2;
-[b a] = butter(O2,F2/(Fs/2)); 
-h_2l  = impz(conv(b,b),conv(a,a),4096);
-[b a] = butter(O2,F2/(Fs/2),"high"); 
-h_2h  = impz(conv(b,b),conv(a,a),4096);
+
+% Woofer LR4 low-pass
+[b,a] = butter(O2,FL/(Fs/2),"low");
+h_low = impz(conv(b,b),conv(a,a),N);
 
 
-
-hl = conv(h_1l, h_2l); hl = hl(1:4096);
-hm = conv(h_1h, h_2l); hm = hm(1:4096);
-hh = conv(h_1h, h_2h); hh = hh(1:4096);
-
-
-f0 = 20;
-BW_oct = 1.5;
-
-    
-    w0 = 2*pi*f0/Fs;
-    Q = 1/(2*sinh(log(2)/2 * BW_oct * w0/sin(w0)));
-    alpha = sin(w0)/(2*Q);
-    c = cos(w0);
-    b0 =  alpha;  b1 = 0;      b2 = -alpha;
-    a0 = 1+alpha; a1 = -2*c;   a2 = 1-alpha;
-    b = [b0 b1 b2]/a0;
-    a = [1  a1/a0  a2/a0];
-
-    %[b a] = butter(1,[10 50]/(Fs/2));
-hl = hl + 2*impz(b,a,4096);
+% Tweeter target LR4 high-pass
+[b,a] = butter(O2,FH/(Fs/2),"high");
+bt = conv(b,b);
+at = conv(a,a);
 
 
-Ll = hl;
-Lm = hm;
-Lh = hh;
+% Passive tweeter capacitor compensation
+R = 3.3;
+C = 10e-6;
+
+wc = 1/(R*C);
+
+% Physical capacitor: Hc(s) = s/(s+wc)
+[bc,ac] = bilinear([1 0],[1 wc],Fs);
+
+% Digital compensation for the capacitor
+[q,rem] = deconv(bt,[1 -1]);
+
+bd = conv(q,ac)/bc(1);
+ad = at;
+
+h_high = impz(bd,ad,N);
 
 
+% Final two FIRs
+hl = conv(h_protect,h_low);
+hl = hl(1:N);
 
-Ll  = fade(Ll(1:4096),[0 .8]);
-Lm  = fade(Lm(1:4096),[0 .8]);
-Lh  = fade(Lh(1:4096),[0 .8]);
+hh = h_high;
+
+hl  = fade(hl,[0 .8]);
+ho  = fade(-4/3*sum(hl)/length(hl)*ones(size(hl)),[0 0.8]);
+hl  = hl+ho;
+
+hh  = fade(hh,[0 .8]);
+
+
+% Verification: capacitor included in tweeter
+ht = filter(bc,ac,hh);
+ht = ht(1:N);
+
 %%
 
-figure(2); clf;
-Spectra([[Ll Lm Lh  Ll+Lm+Lh -Ll+Lm+Lh Ll+[zeros(34,1); Lm(1:end-34)+Lh(1:end-34)]]; zeros(100000,6)],Fs,'linewidth',2);
+figure(1); clf;
+Spectra([[hl hh  hl+hh hl+ht]; zeros(100000,4)],Fs,'linewidth',2);
 axis([1 (Fs/2) -40 15]);
 grid on;
-legend('Low','Mid','High','Phase Sum','Flip Low','Delay');
+legend('Low','High','Sum','Sum W Cap');
 
-
-figure(4); clf;
-Spectra([Ll; zeros(100000,1)],Fs,'r-','linewidth',2); hold on;
-Spectra([Lm; zeros(100000,1)],Fs,'b-','linewidth',2); hold on;
-Spectra([Lh; zeros(100000,1)],Fs,'m-','linewidth',2); hold on;
-axis([1 (Fs/2) -40 15]);
-grid on;
 
 
 %% Write them out
 
-Filters = { { "Low_LR4", Ll },
-            { "Mid_LR4", Lm  },
-            { "High_LR4", Lh },
+Filters = { { "A2B_Low", hl },
+            { "A2B_High", hh },
             { "Passthrough", double((1:4096)'==1) }
             };
-
-
-
-[bl al] = butter(4,22000/(Fs/2));
-[bh ah] = butter(2,20/(Fs/2),'high');
-figure(6); clf;
-for (f=1:length(Filters))
-    Filters{f}{2} = filter(bl,al,Filters{f}{2});
-    Filters{f}{2} = filter(bh,ah,Filters{f}{2});
-    Filters{f}{2}(abs(Filters{f}{2})<.0000000499)=0;       % Avoid the +- 0 for git diff on the Filters.h
-    Spectra([ Filters{f}{2}; zeros(100000,1)], Fs); hold on;
-    Spectra([ round(Filters{f}{2},5); zeros(100000,1)], Fs); hold on;
-    sum(round(Filters{f}{2},8)~=0)
-end;
-axis([1 (Fs/2) -40 10]);
-grid on;
 
 
 file = fopen("../Filters.h",'w');

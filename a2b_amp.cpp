@@ -53,9 +53,9 @@ static constexpr float s_ictrl_ma_per_volt = 1000.0F / (s_ictrl_rsens * s_ictrl_
 #define A2B_AMP_SLOT        A2B_ADC_SLOT(A2B_AMP_ADC_GPIO)
 #define A2B_CURRENT_SLOT    A2B_ADC_SLOT(A2B_CURRENT_ADC_GPIO)
 
-static Histogram s_bus_hist    ("A2B Input (V)",  0, 35);
-static Histogram s_current_hist("A2B Input (mA)", 0, 2000);
-static Histogram s_amp_hist    ("A2B Amp (V)",    0, 35);
+static Histogram s_bus_hist    ("A2B Input (V)",  0, 30);
+static Histogram s_current_hist("A2B Input (mA)", 0, 1000);
+static Histogram s_amp_hist    ("A2B Amp (V)",    0, 30);
 static Histogram s_adc_time    ("A2B ADC IRQ (s)",0, .002);
 
 static bool s_a2b_adc_initialized = false;

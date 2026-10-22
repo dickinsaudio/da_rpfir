@@ -20,7 +20,7 @@
 #define     CLK_PIO_DIV_F   ((int)(((CLK_SYS%CLK_PIO)*256LL+128)/CLK_PIO))  // PIO clock divider fractional part
 
 #define     I2S_CHANS       2                   // Number of I2S channels to output
-#define     I2S_BLOCK       2048                // Number of samples at that we lump into each ISR call
+#define     I2S_BLOCK       128                 // Number of samples at that we lump into each ISR call
 #define     I2S_BUFFER      2*I2S_BLOCK         // Number of samples at in the ring buffer  (I2S_BUFFER / I2S_BLOCK must be power of two)
 #define     I2S_PIO         pio0                // PIO to use for I2S in and out
 #define     I2S_OUT_SM      0                   // State machine for I2S output
@@ -183,7 +183,7 @@ void i2s_setup()
 
 #define T_FFT       I2S_BLOCK       // The stride of time samples between each FFT
 #define N_FFT       T_FFT           // The size of the complex FFT we will be using
-#define M_FIR       2               // The number of blocks to use for filtering
+#define M_FIR       16              // The number of blocks to use for filtering
 #define CHANS       2               // The number of output channels
                                                     
 float32_t   buf_x[CHANS][2*N_FFT];  // TODO Since this is in FIR buffer, we can avoid a slide move and also use buf_y                 
@@ -196,13 +196,15 @@ arm_rfft_fast_instance_f32 FFT;
 #include "Filters.h"
 #include "arm_common_tables.h"
 
-// RAM copies of CMSIS-DSP twiddle/bitrev tables.
-// The flash originals are ~40KB total - larger than the 16KB XIP cache - so every
+// RAM copies of CMSIS-DSP twiddle/bitrev tables, sized for the N_FFT point CFFT inside the
+// 2*N_FFT real FFT. The flash originals can be larger than the 16KB XIP cache - so every
 // FFT call causes compulsory cache misses.  Copying them to SRAM at startup
 // eliminates flash traffic for the hot audio path entirely.
-static float32_t  ram_twiddle_cfft[4096];                                   // 16KB - twiddleCoef_2048 (CFFT inner loop)
-static float32_t  ram_twiddle_rfft[4096];                                   // 16KB - twiddleCoef_rfft_4096 (RFFT split stage)
-static uint16_t   ram_bitrev[ARMBITREVINDEXTABLE_2048_TABLE_LENGTH];         //  7.6KB - armBitRevIndexTable2048
+#define BITREV_LENGTH_(n)   ARMBITREVINDEXTABLE_##n##_TABLE_LENGTH
+#define BITREV_LENGTH(n)    BITREV_LENGTH_(n)
+static float32_t  ram_twiddle_cfft[2*N_FFT];                                // twiddleCoef_<N_FFT> (CFFT inner loop)
+static float32_t  ram_twiddle_rfft[2*N_FFT];                                // twiddleCoef_rfft_<2*N_FFT> (RFFT split stage)
+static uint16_t   ram_bitrev[BITREV_LENGTH(N_FFT)];                         // armBitRevIndexTable<N_FFT>
 
 void fir_load_coefficients(const float32_t *h, int length, int channel)
 {
@@ -235,6 +237,12 @@ void fir_setup()
     arm_status status = arm_rfft_fast_init_2048_f32(&FFT);
     #elif N_FFT == 4096
     arm_status status = arm_rfft_fast_init_f32 (&FFT, 8192);
+    #elif N_FFT == 512
+    arm_status status = arm_rfft_fast_init_1024_f32(&FFT);
+    #elif N_FFT == 256
+    arm_status status = arm_rfft_fast_init_512_f32(&FFT);
+    #elif N_FFT == 128
+    arm_status status = arm_rfft_fast_init_256_f32(&FFT);
     #else
     #error "FFT SIZE NOT SUPPORTED"
     #endif
@@ -291,13 +299,12 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 #endif
     for (int n = 0; n < T_FFT; n++)
     {
-        const float gain = 5.0F;
-        float32_t val = *buf1++ * gain;
+        float32_t val = *buf1++;                                    // Unity gain (inverse FFT is 1/N scaled)
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
         *yp++ = ((int32_t)val) & 0xFFFFFFFC;
 #if CHANS == 2
-        val = *buf2++ * gain;
+        val = *buf2++;
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
         *yp++ = ((int32_t)val) & 0xFFFFFFFC;
