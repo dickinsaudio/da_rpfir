@@ -14,7 +14,7 @@ int  a2b_amp_stats_text(int step, int len, char *buf);     // Text for histogram
 void a2b_22v_enable_set(bool enabled);
 bool a2b_22v_enable_get();
 
-constexpr float A2B_CURRENT_LIMIT_DEFAULT_MA = 200.0F;
+constexpr float A2B_CURRENT_LIMIT_DEFAULT_MA = 200.0F;   // After the soft start (power up is at the minimum)
 // Always PWM on GPIO10. Requests outside the achievable range are clamped to it (and logged).
 bool a2b_current_limit_set(float current_ma);
 // Nominal sense-current limit after PWM quantization, not measured supply current.

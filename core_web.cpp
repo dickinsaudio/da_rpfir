@@ -808,9 +808,24 @@ void start_web(void)
 #endif
         }
 
+        static bool soft_start_done = false;        // Soft start ramp every pass (see da_rpfir.hpp)
+        if (!soft_start_done)
+        {
+            float x = (float)(now - soft_start_ns - SOFT_START_DELAY_MS * 1000000LL) / (SOFT_START_MS * 1000000.0F);
+            if (x < 1.0F) audio_out_gain_set(x > 0.0F ? x * x : 0.0F);
+            else
+            {
+                audio_out_gain_set(1.0F);
+                a2b_current_limit_set(A2B_CURRENT_LIMIT_DEFAULT_MA);
+                Notice("SOFT START DONE: GAIN 0 dB, CURRENT LIMIT %.1f mA", a2b_current_limit_get());
+                soft_start_done = true;
+            }
+        }
+
         if (now > next_peak)
         {
             next_peak = now + 10000000LL;       // Fixed interval not fixed rate
+
             int channels = (int)(sizeof(out_meters)/sizeof(int32_t));
             for (int n=0; n<channels; n++)
             {

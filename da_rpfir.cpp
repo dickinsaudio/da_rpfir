@@ -18,6 +18,8 @@ Histogram core_stall[2];
 
 
 
+int64_t soft_start_ns;      // When 22V was enabled - the soft start in the web loop runs from here
+
 int main()
 {
     // Set the voltage regulator
@@ -44,7 +46,7 @@ int main()
     flash_load();
     a2b_amp_init();
 
-    send_rgb(0, 0, 15);
+    send_rgb(0, 0, 9);                  // Blue, ~10% (log scale step 9 = 28/255)
 
     Notice("*********************************************");
     Notice("BOOT NUMBER                 %10ld",flash->loads);
@@ -72,6 +74,7 @@ int main()
     Notice("ENABLING 22V");
     a2b_amp_stats_clear();
     a2b_22v_enable_set(true);
+    soft_start_ns = now_ns();
 
     Notice("WAITING 1 SECOND FOR 22V RAIL");
     sleep_ms(1000);
@@ -85,7 +88,8 @@ int main()
         Notice("AMPLIFIER ENABLE FAILED");
     }
 
-    Notice("AMPLIFIER CURRENT LIMIT %.1f mA", a2b_current_limit_get());
+    Notice("AMPLIFIER CURRENT LIMIT %.1f mA - SOFT START: GAIN 0 -> 0 dB OVER %d s, THEN %.0f mA",
+           a2b_current_limit_get(), SOFT_START_MS / 1000, A2B_CURRENT_LIMIT_DEFAULT_MA);
 
     Notice("*********************************************");
     Notice("STARTING WEB SERVER");

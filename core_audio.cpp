@@ -263,6 +263,9 @@ void fir_setup()
     fir_load_coefficients(FILTER_1, sizeof(FILTER_1)/sizeof(float32_t), 1);
 }
 
+// Output gain after the filters (linear, 1.0 = 0 dB). Starts muted; the boot soft start ramps it.
+static volatile float audio_out_gain = 0.0F;
+
 void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 {
     static int m=0;
@@ -299,12 +302,12 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 #endif
     for (int n = 0; n < T_FFT; n++)
     {
-        float32_t val = *buf1++;                                    // Unity gain (inverse FFT is 1/N scaled)
+        float32_t val = *buf1++ * audio_out_gain;                   // Inverse FFT is 1/N scaled, so this is the gain
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
         *yp++ = ((int32_t)val) & 0xFFFFFFFC;
 #if CHANS == 2
-        val = *buf2++;
+        val = *buf2++ * audio_out_gain;
         if      (val >  (float) 0x7FFFFE00LL) val =  (float) 0x7FFFFE00LL;
         else if (val < -(float) 0x80000000LL) val = -(float) 0x80000000LL;
         *yp++ = ((int32_t)val) & 0xFFFFFFFC;
@@ -323,6 +326,11 @@ void __not_in_flash() fir_compute(int32_t *x, int32_t *y)
 //
 
 void core_audio(void);
+
+void audio_out_gain_set(float gain)
+{
+    audio_out_gain = gain < 0.0F ? 0.0F : gain;
+}
 
 void start_audio()
 {

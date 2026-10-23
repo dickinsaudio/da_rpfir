@@ -132,6 +132,14 @@ using namespace DAES67;
 
 void start_web(void);
 void start_audio(void);
+void audio_out_gain_set(float gain);    // Linear output gain after the filters (1.0 = 0 dB), starts at 0
+
+// SOFT START (run in the web loop): from 22V on, the output stays muted for SOFT_START_DELAY_MS
+// (the amp rail coming up), then the gain rises from 0 to 0 dB over SOFT_START_MS as (t/T)^2 while
+// the current limit stays at its minimum; then the limit goes to A2B_CURRENT_LIMIT_DEFAULT_MA once.
+#define SOFT_START_DELAY_MS 2000
+#define SOFT_START_MS       8000
+extern int64_t soft_start_ns;
 void stop_audio();
 
 void w5500_startup(void);

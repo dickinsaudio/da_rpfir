@@ -163,7 +163,7 @@ void a2b_amp_init()
     pwmInit(A2B_ICTRL_PWM_GPIO, A2B_ICTRL_PWM_WRAP, A2B_ICTRL_PWM_FREQ_KHZ, 0);
 
     s_a2b_adc_initialized = true;
-    a2b_current_limit_set(A2B_CURRENT_LIMIT_DEFAULT_MA);
+    a2b_current_limit_set(a2b_current_limit_min());     // Power up at the lowest limit (soft start)
 }
 
 void a2b_22v_enable_set(bool enabled)
