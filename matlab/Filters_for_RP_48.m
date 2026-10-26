@@ -9,20 +9,21 @@ Fs = 48000;
 
 
 
-N = 2048;
 
-% Woofer protection
-F1 = 50;
-O1 = 3;
+N = 4096;
+
+% Woofer protection - 80 Hz LR4
+F1 = 80;
+O1 = 2;
 
 [b,a] = butter(O1,F1/(Fs/2),"high");
 h_protect = impz(conv(b,b),conv(a,a),N);
 
 
 % Woofer / tweeter crossover
-% Separated LR4 corners for ~2 dB summed dip
-FL = 2450;
-FH = 2950;
+% ~2 dB summed dip centred at 2.2 kHz
+FL = 2000;
+FH = 2400;
 O2 = 2;
 
 % Woofer LR4 low-pass
@@ -36,16 +37,16 @@ bt = conv(b,b);
 at = conv(a,a);
 
 
-% Passive tweeter capacitor compensation
+% Physical tweeter capacitor compensation
 R = 3.3;
 C = 10e-6;
 
 wc = 1/(R*C);
 
-% Physical capacitor: Hc(s) = s/(s+wc)
+% Capacitor: Hc(s) = s/(s+wc)
 [bc,ac] = bilinear([1 0],[1 wc],Fs);
 
-% Digital compensation for the capacitor
+% Digital inverse capacitor compensation
 [q,rem] = deconv(bt,[1 -1]);
 
 bd = conv(q,ac)/bc(1);
@@ -54,18 +55,11 @@ ad = at;
 h_high = impz(bd,ad,N);
 
 
-% Final two FIRs
+% Final FIRs (two channels)
 hl = conv(h_protect,h_low);
 hl = hl(1:N);
 
 hh = h_high;
-
-hl  = fade(hl,[0 .8]);
-ho  = fade(-4/3*sum(hl)/length(hl)*ones(size(hl)),[0 0.8]);
-hl  = hl+ho;
-
-hh  = fade(hh,[0 .8]);
-
 
 % Verification: capacitor included in tweeter
 ht = filter(bc,ac,hh);
